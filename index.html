@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Blender Model - Three.js</title>
+    <title>Blender Model</title>
 
     <style>
         html,
@@ -45,18 +45,18 @@ import { OrbitControls } from
     'three/addons/controls/OrbitControls.js';
 
 
-// ----------------------------------------
+// ==============================
 // シーン
-// ----------------------------------------
+// ==============================
 
 const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0x111111);
 
 
-// ----------------------------------------
+// ==============================
 // カメラ
-// ----------------------------------------
+// ==============================
 
 const camera = new THREE.PerspectiveCamera(
     45,
@@ -68,9 +68,9 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 1, 5);
 
 
-// ----------------------------------------
+// ==============================
 // レンダラー
-// ----------------------------------------
+// ==============================
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true
@@ -90,9 +90,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 
-// ----------------------------------------
+// ==============================
 // ライト
-// ----------------------------------------
+// ==============================
 
 const ambientLight = new THREE.AmbientLight(
     0xffffff,
@@ -112,9 +112,9 @@ directionalLight.position.set(3, 5, 3);
 scene.add(directionalLight);
 
 
-// ----------------------------------------
-// カメラ操作
-// ----------------------------------------
+// ==============================
+// マウス操作
+// ==============================
 
 const controls = new OrbitControls(
     camera,
@@ -124,31 +124,30 @@ const controls = new OrbitControls(
 controls.enableDamping = true;
 
 
-// ----------------------------------------
+// ==============================
 // GLB読み込み
-// ----------------------------------------
+// ==============================
 
 const loader = new GLTFLoader();
 
 loader.load(
-    'character.glb',
+
+    'コレカうごかしたいね.glb',
 
     function (gltf) {
+
+        console.log('GLB読み込み成功');
+
+        console.log('アニメーション:', gltf.animations);
 
         const model = gltf.scene;
 
         scene.add(model);
 
-        console.log('モデル読み込み完了');
 
-        console.log(
-            'アニメーション:',
-            gltf.animations
-        );
-
-        // --------------------------------
-        // モデルの大きさを確認
-        // --------------------------------
+        // --------------------------
+        // モデルの大きさを取得
+        // --------------------------
 
         const box = new THREE.Box3()
             .setFromObject(model);
@@ -157,15 +156,21 @@ loader.load(
             new THREE.Vector3()
         );
 
-        model.position.sub(center);
-
-        // --------------------------------
-        // カメラ位置
-        // --------------------------------
-
         const size = box.getSize(
             new THREE.Vector3()
         );
+
+
+        // --------------------------
+        // モデルを中央に配置
+        // --------------------------
+
+        model.position.sub(center);
+
+
+        // --------------------------
+        // カメラをモデルに合わせる
+        // --------------------------
 
         const maxSize = Math.max(
             size.x,
@@ -179,13 +184,10 @@ loader.load(
             maxSize * 2.5
         );
 
-        controls.target.set(
-            0,
-            0,
-            0
-        );
+        controls.target.set(0, 0, 0);
 
         controls.update();
+
     },
 
     undefined,
@@ -201,11 +203,9 @@ loader.load(
 );
 
 
-// ----------------------------------------
-// アニメーション
-// ----------------------------------------
-
-const clock = new THREE.Clock();
+// ==============================
+// アニメーションループ
+// ==============================
 
 function animate() {
 
@@ -222,9 +222,9 @@ function animate() {
 animate();
 
 
-// ----------------------------------------
+// ==============================
 // ウィンドウサイズ変更
-// ----------------------------------------
+// ==============================
 
 window.addEventListener(
     'resize',
@@ -240,6 +240,7 @@ window.addEventListener(
             window.innerWidth,
             window.innerHeight
         );
+
     }
 );
 
