@@ -128,42 +128,57 @@ controls.enableDamping = true;
 // GLB読み込み
 // ==============================
 
-const model = gltf.scene;
+const loader = new GLTFLoader();
 
+loader.load(
 
-// ==============================
-// GLBの中身を確認
-// ==============================
+    'character.glb',
 
-model.traverse(function (object) {
+    function (gltf) {
 
-    console.log(
-        'オブジェクト:',
-        object.name,
-        '種類:',
-        object.type
-    );
-
-
-    // Meshの場合
-    if (object.isMesh) {
+        console.log('GLB読み込み成功');
 
         console.log(
-            '  マテリアル:',
-            object.material
+            'アニメーション:',
+            gltf.animations
         );
 
-        console.log(
-            '  マテリアル名:',
-            object.material.name
-        );
-
-    }
-
-});
+        const model = gltf.scene;
 
 
-scene.add(model);
+        // ==============================
+        // GLBの中身を確認
+        // ==============================
+
+        model.traverse(function (object) {
+
+            console.log(
+                'オブジェクト:',
+                object.name,
+                '種類:',
+                object.type
+            );
+
+
+            // Meshの場合
+            if (object.isMesh) {
+
+                console.log(
+                    '  マテリアル:',
+                    object.material
+                );
+
+                console.log(
+                    '  マテリアル名:',
+                    object.material.name
+                );
+
+            }
+
+        });
+
+
+        scene.add(model);
 
 
         // --------------------------
@@ -221,6 +236,7 @@ scene.add(model);
         );
 
     }
+
 );
 
 
@@ -238,6 +254,7 @@ function animate() {
         scene,
         camera
     );
+
 }
 
 animate();
