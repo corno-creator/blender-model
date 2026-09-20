@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Blender Model</title>
+    <title>Blender Model - Moving Water</title>
 
     <style>
         html,
@@ -34,6 +34,7 @@
 }
 </script>
 
+
 <script type="module">
 
 import * as THREE from 'three';
@@ -45,18 +46,18 @@ import { OrbitControls } from
     'three/addons/controls/OrbitControls.js';
 
 
-// ==============================
+// ============================================================
 // シーン
-// ==============================
+// ============================================================
 
 const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0x111111);
 
 
-// ==============================
+// ============================================================
 // カメラ
-// ==============================
+// ============================================================
 
 const camera = new THREE.PerspectiveCamera(
     45,
@@ -68,9 +69,9 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 1, 5);
 
 
-// ==============================
+// ============================================================
 // レンダラー
-// ==============================
+// ============================================================
 
 const renderer = new THREE.WebGLRenderer({
     antialias: true
@@ -90,9 +91,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
 
-// ==============================
+// ============================================================
 // ライト
-// ==============================
+// ============================================================
 
 const ambientLight = new THREE.AmbientLight(
     0xffffff,
@@ -112,9 +113,9 @@ directionalLight.position.set(3, 5, 3);
 scene.add(directionalLight);
 
 
-// ==============================
+// ============================================================
 // マウス操作
-// ==============================
+// ============================================================
 
 const controls = new OrbitControls(
     camera,
@@ -124,9 +125,273 @@ const controls = new OrbitControls(
 controls.enableDamping = true;
 
 
-// ==============================
+// ============================================================
+// 水面用 Shader
+// ============================================================
+
+// 時間
+const waterUniforms = {
+
+    uTime: {
+        value: 0
+    },
+
+    // Noiseの細かさ
+    uScale: {
+        value: 6.8
+    },
+
+    // 水面の明るい色
+    uColor1: {
+        value: new THREE.Color(0x7fa8a8)
+    },
+
+    // 水面の暗い色
+    uColor2: {
+        value: new THREE.Color(0x182b2b)
+    }
+
+};
+
+
+// ============================================================
+// Vertex Shader
+// ============================================================
+
+const waterVertexShader = `
+
+    varying vec3 vPosition;
+
+    void main() {
+
+        vPosition = position;
+
+        gl_Position =
+            projectionMatrix *
+            modelViewMatrix *
+            vec4(position, 1.0);
+
+    }
+
+`;
+
+
+// ============================================================
+// Fragment Shader
+// ============================================================
+
+const waterFragmentShader = `
+
+    uniform float uTime;
+
+    uniform float uScale;
+
+    uniform vec3 uColor1;
+
+    uniform vec3 uColor2;
+
+
+    varying vec3 vPosition;
+
+
+    // ========================================================
+    // 2D Noise
+    // ========================================================
+
+    float random(vec2 st)
+    {
+        return fract(
+            sin(
+                dot(
+                    st,
+                    vec2(
+                        12.9898,
+                        78.233
+                    )
+                )
+            ) * 43758.5453123
+        );
+    }
+
+
+    float noise(vec2 st)
+    {
+
+        vec2 i = floor(st);
+
+        vec2 f = fract(st);
+
+
+        // 四隅のランダム値
+
+        float a = random(i);
+
+        float b = random(i + vec2(1.0, 0.0));
+
+        float c = random(i + vec2(0.0, 1.0));
+
+        float d = random(i + vec2(1.0, 1.0));
+
+
+        // 滑らかな補間
+
+        vec2 u =
+            f * f *
+            (
+                3.0 -
+                2.0 * f
+            );
+
+
+        return mix(
+            a,
+            b,
+            u.x
+        )
+        +
+        (
+            c - a
+        )
+        * u.y
+        *
+        (
+            1.0 - u.x
+        )
+        +
+        (
+            d - b
+        )
+        *
+        u.x
+        *
+        u.y;
+
+    }
+
+
+    // ========================================================
+    // 複数のNoiseを重ねる
+    // ========================================================
+
+    float fbm(vec2 st)
+    {
+
+        float value = 0.0;
+
+        float amplitude = 0.5;
+
+        float frequency = 1.0;
+
+
+        for (int i = 0; i < 4; i++)
+        {
+
+            value +=
+                amplitude *
+                noise(
+                    st *
+                    frequency
+                );
+
+
+            frequency *= 2.0;
+
+            amplitude *= 0.5;
+
+        }
+
+
+        return value;
+
+    }
+
+
+    // ========================================================
+    // メイン
+    // ========================================================
+
+    void main()
+    {
+
+        // --------------------------------------------
+        // 水面の座標
+        // --------------------------------------------
+
+        vec2 position =
+            vPosition.xz;
+
+
+        // --------------------------------------------
+        // BlenderのNoise Scale 6.8に近い値
+        // --------------------------------------------
+
+        position *= uScale;
+
+
+        // --------------------------------------------
+        // 時間でNoiseの位置を動かす
+        // --------------------------------------------
+
+        position.x += uTime * 0.35;
+
+        position.y += uTime * 0.20;
+
+
+        // --------------------------------------------
+        // Noise
+        // --------------------------------------------
+
+        float n =
+            fbm(position);
+
+
+        // --------------------------------------------
+        // 色をNoiseに応じて変える
+        // --------------------------------------------
+
+        vec3 color =
+            mix(
+                uColor2,
+                uColor1,
+                n
+            );
+
+
+        // --------------------------------------------
+        // 出力
+        // --------------------------------------------
+
+        gl_FragColor =
+            vec4(
+                color,
+                1.0
+            );
+
+    }
+
+`;
+
+
+// ============================================================
+// 水面ShaderMaterial
+// ============================================================
+
+const waterMaterial = new THREE.ShaderMaterial({
+
+    uniforms: waterUniforms,
+
+    vertexShader: waterVertexShader,
+
+    fragmentShader: waterFragmentShader,
+
+    side: THREE.DoubleSide
+
+});
+
+
+// ============================================================
 // GLB読み込み
-// ==============================
+// ============================================================
 
 const loader = new GLTFLoader();
 
@@ -143,12 +408,13 @@ loader.load(
             gltf.animations
         );
 
+
         const model = gltf.scene;
 
 
-        // ==============================
+        // ====================================================
         // GLBの中身を確認
-        // ==============================
+        // ====================================================
 
         model.traverse(function (object) {
 
@@ -160,59 +426,74 @@ loader.load(
             );
 
 
-            // Meshの場合
-            if (object.isMesh) {
+            // ==================================================
+            // 水面だけShaderMaterialに変更
+            // ==================================================
+
+            if (
+                object.isMesh &&
+                object.name === '水面'
+            ) {
 
                 console.log(
-                    '  マテリアル:',
-                    object.material
+                    '★ 水面をShaderMaterialに変更しました'
                 );
 
-                console.log(
-                    '  マテリアル名:',
-                    object.material.name
-                );
+
+                object.material =
+                    waterMaterial;
 
             }
 
         });
 
 
+        // ====================================================
+        // シーンに追加
+        // ====================================================
+
         scene.add(model);
 
 
-        // --------------------------
+        // ====================================================
         // モデルの大きさを取得
-        // --------------------------
+        // ====================================================
 
-        const box = new THREE.Box3()
-            .setFromObject(model);
-
-        const center = box.getCenter(
-            new THREE.Vector3()
-        );
-
-        const size = box.getSize(
-            new THREE.Vector3()
-        );
+        const box =
+            new THREE.Box3()
+                .setFromObject(model);
 
 
-        // --------------------------
+        const center =
+            box.getCenter(
+                new THREE.Vector3()
+            );
+
+
+        const size =
+            box.getSize(
+                new THREE.Vector3()
+            );
+
+
+        // ====================================================
         // モデルを中央に配置
-        // --------------------------
+        // ====================================================
 
         model.position.sub(center);
 
 
-        // --------------------------
+        // ====================================================
         // カメラをモデルに合わせる
-        // --------------------------
+        // ====================================================
 
-        const maxSize = Math.max(
-            size.x,
-            size.y,
-            size.z
-        );
+        const maxSize =
+            Math.max(
+                size.x,
+                size.y,
+                size.z
+            );
+
 
         camera.position.set(
             0,
@@ -220,7 +501,13 @@ loader.load(
             maxSize * 2.5
         );
 
-        controls.target.set(0, 0, 0);
+
+        controls.target.set(
+            0,
+            0,
+            0
+        );
+
 
         controls.update();
 
@@ -240,15 +527,48 @@ loader.load(
 );
 
 
-// ==============================
+// ============================================================
 // アニメーションループ
-// ==============================
+// ============================================================
 
-function animate() {
+const clock =
+    new THREE.Clock();
 
-    requestAnimationFrame(animate);
+
+function animate()
+{
+
+    requestAnimationFrame(
+        animate
+    );
+
+
+    // ========================================================
+    // 経過時間
+    // ========================================================
+
+    const elapsedTime =
+        clock.getElapsedTime();
+
+
+    // ========================================================
+    // 水面の時間を更新
+    // ========================================================
+
+    waterUniforms.uTime.value =
+        elapsedTime;
+
+
+    // ========================================================
+    // マウス操作
+    // ========================================================
 
     controls.update();
+
+
+    // ========================================================
+    // 描画
+    // ========================================================
 
     renderer.render(
         scene,
@@ -257,22 +577,26 @@ function animate() {
 
 }
 
+
 animate();
 
 
-// ==============================
+// ============================================================
 // ウィンドウサイズ変更
-// ==============================
+// ============================================================
 
 window.addEventListener(
     'resize',
-    function () {
+    function ()
+    {
 
         camera.aspect =
             window.innerWidth /
             window.innerHeight;
 
+
         camera.updateProjectionMatrix();
+
 
         renderer.setSize(
             window.innerWidth,
