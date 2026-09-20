@@ -141,7 +141,16 @@ loader.load(
         console.log('アニメーション:', gltf.animations);
 
         const model = gltf.scene;
-
+        model.traverse(function (object) {
+        
+            console.log(
+                'オブジェクト:',
+                object.name,
+                '種類:',
+                object.type
+            );
+        
+        });
         scene.add(model);
 
 
