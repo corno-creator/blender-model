@@ -128,30 +128,42 @@ controls.enableDamping = true;
 // GLB読み込み
 // ==============================
 
-const loader = new GLTFLoader();
+const model = gltf.scene;
 
-loader.load(
 
-    'character.glb',
+// ==============================
+// GLBの中身を確認
+// ==============================
 
-    function (gltf) {
+model.traverse(function (object) {
 
-        console.log('GLB読み込み成功');
+    console.log(
+        'オブジェクト:',
+        object.name,
+        '種類:',
+        object.type
+    );
 
-        console.log('アニメーション:', gltf.animations);
 
-        const model = gltf.scene;
-        model.traverse(function (object) {
-        
-            console.log(
-                'オブジェクト:',
-                object.name,
-                '種類:',
-                object.type
-            );
-        
-        });
-        scene.add(model);
+    // Meshの場合
+    if (object.isMesh) {
+
+        console.log(
+            '  マテリアル:',
+            object.material
+        );
+
+        console.log(
+            '  マテリアル名:',
+            object.material.name
+        );
+
+    }
+
+});
+
+
+scene.add(model);
 
 
         // --------------------------
