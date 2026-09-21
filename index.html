@@ -241,24 +241,105 @@ const waterUniforms = {
 
 const waterVertexShader = `
 
+uniform float uTime;
+uniform float uScale;
 
 varying vec3 vWorldPosition;
-
 varying vec3 vWorldNormal;
-
 varying vec3 vPosition;
 
+
+// ------------------------------------------------------------
+// 波を作るNoise
+// ------------------------------------------------------------
+
+float random(vec2 st)
+{
+    return fract(
+        sin(
+            dot(
+                st,
+                vec2(12.9898, 78.233)
+            )
+        ) * 43758.5453123
+    );
+}
+
+
+float noise(vec2 st)
+{
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+
+    vec2 u =
+        f * f *
+        (3.0 - 2.0 * f);
+
+    return mix(a, b, u.x)
+        + (c - a) * u.y * (1.0 - u.x)
+        + (d - b) * u.x * u.y;
+}
+
+
+// ------------------------------------------------------------
+// 波の高さ
+// ------------------------------------------------------------
+
+float getWave(vec2 position)
+{
+    float wave = 0.0;
+
+    wave +=
+        noise(
+            position * 2.0
+            + vec2(uTime * 0.15)
+        )
+        * 0.12;
+
+    wave +=
+        noise(
+            position * 4.0
+            - vec2(uTime * 0.10)
+        )
+        * 0.05;
+
+    wave +=
+        noise(
+            position * 8.0
+            + vec2(uTime * 0.20)
+        )
+        * 0.02;
+
+    return wave;
+}
 
 
 void main()
 {
+    // --------------------------------------------------------
+    // 元の座標
+    // --------------------------------------------------------
+
+    vec3 newPosition = position;
+
 
     // --------------------------------------------------------
-    // ローカル座標
+    // 水面の波
     // --------------------------------------------------------
 
-    vPosition = position;
+    float wave =
+        getWave(
+            position.xz
+        );
 
+
+    // Y方向に動かす
+    newPosition.y += wave;
 
 
     // --------------------------------------------------------
@@ -268,13 +349,37 @@ void main()
     vec4 worldPosition =
         modelMatrix *
         vec4(
-            position,
+            newPosition,
             1.0
         );
 
 
+    vPosition =
+        newPosition;
+
+
     vWorldPosition =
         worldPosition.xyz;
+
+
+    vWorldNormal =
+        normalize(
+            mat3(modelMatrix) *
+            normal
+        );
+
+
+    // --------------------------------------------------------
+    // 描画
+    // --------------------------------------------------------
+
+    gl_Position =
+        projectionMatrix *
+        viewMatrix *
+        worldPosition;
+}
+
+`;
 
 
 
