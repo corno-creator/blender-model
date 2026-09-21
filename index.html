@@ -322,10 +322,8 @@ const waterFragmentShader = `
         // 時間でNoiseの位置を動かす
         // --------------------------------------------
 
-        position.x += uTime * 0.35;
-
-        position.y += uTime * 0.20;
-
+        position.x += uTime * 0.08;
+        position.y += uTime * 0.04;
 
         // --------------------------------------------
         // Noise
@@ -339,84 +337,71 @@ const waterFragmentShader = `
         // 色をNoiseに応じて変える
         // --------------------------------------------
 
-        // ========================================================
+// ========================================================
 // 虹色のカラーパレット
 // ========================================================
 
-vec3 color1 = vec3(1.0, 0.05, 0.25);  // 赤～ピンク
-vec3 color2 = vec3(1.0, 0.45, 0.02);  // オレンジ
-vec3 color3 = vec3(1.0, 0.95, 0.05);  // 黄色
-vec3 color4 = vec3(0.05, 1.0, 0.35);  // 緑
-vec3 color5 = vec3(0.05, 0.8, 1.0);   // 水色
-vec3 color6 = vec3(0.05, 0.25, 1.0);  // 青
-vec3 color7 = vec3(0.7, 0.05, 1.0);   // 紫
-
+vec3 color1 = vec3(0.45, 0.02, 0.10);
+vec3 color2 = vec3(0.45, 0.18, 0.01);
+vec3 color3 = vec3(0.45, 0.40, 0.01);
+vec3 color4 = vec3(0.01, 0.45, 0.12);
+vec3 color5 = vec3(0.01, 0.35, 0.45);
+vec3 color6 = vec3(0.01, 0.10, 0.45);
+vec3 color7 = vec3(0.30, 0.01, 0.45);
 
 vec3 color;
 
 if (n < 0.16)
 {
-    color = mix(
-        color1,
-        color2,
-        n / 0.16
-    );
+    color = mix(color1, color2, n / 0.16);
 }
 else if (n < 0.32)
 {
-    color = mix(
-        color2,
-        color3,
-        (n - 0.16) / 0.16
-    );
+    color = mix(color2, color3, (n - 0.16) / 0.16);
 }
 else if (n < 0.48)
 {
-    color = mix(
-        color3,
-        color4,
-        (n - 0.32) / 0.16
-    );
+    color = mix(color3, color4, (n - 0.32) / 0.16);
 }
 else if (n < 0.64)
 {
-    color = mix(
-        color4,
-        color5,
-        (n - 0.48) / 0.16
-    );
+    color = mix(color4, color5, (n - 0.48) / 0.16);
 }
 else if (n < 0.80)
 {
-    color = mix(
-        color5,
-        color6,
-        (n - 0.64) / 0.16
-    );
+    color = mix(color5, color6, (n - 0.64) / 0.16);
 }
 else
 {
-    color = mix(
-        color6,
-        color7,
-        (n - 0.80) / 0.20
-    );
+    color = mix(color6, color7, (n - 0.80) / 0.20);
 }
 
 
-        // --------------------------------------------
-        // 出力
-        // --------------------------------------------
+// ========================================================
+// 光っている部分を追加
+// ========================================================
 
-        gl_FragColor =
-            vec4(
-                color,
-                1.0
-            );
+color +=
+    vec3(0.15) *
+    smoothstep(
+        0.65,
+        1.0,
+        n
+    );
 
-    }
 
-`;
+// ========================================================
+// 透明度
+// ========================================================
+
+float alpha = 0.55;
+
+
+gl_FragColor =
+    vec4(
+        color,
+        alpha
+    );
 
 
 // ============================================================
@@ -431,7 +416,11 @@ const waterMaterial = new THREE.ShaderMaterial({
 
     fragmentShader: waterFragmentShader,
 
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+
+    transparent: true,
+
+    depthWrite: false
 
 });
 
