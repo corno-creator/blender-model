@@ -222,7 +222,7 @@ const waterUniforms = {
     // Noiseの細かさ
     uScale: {
 
-        value: 6.8
+        value: 9
 
     }
 
@@ -380,9 +380,9 @@ float getWave(vec2 position)
     float wave = 0.0;
 
 
-wave += noise(position * 8.0 + vec2(uTime * 0.15)) * 0.04;
-wave += noise(position * 12.0 - vec2(uTime * 0.10)) * 0.018;
-wave += noise(position * 16.0 + vec2(uTime * 0.20)) * 0.008;
+wave += noise(position * 9.0 + vec2(uTime * 0.15)) * 0.01;
+wave += noise(position * 20.0 - vec2(uTime * 0.10)) * 0.009;
+wave += noise(position * 25.0 + vec2(uTime * 0.20)) * 0.002;
 
 
 
