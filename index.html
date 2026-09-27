@@ -1,1580 +1,342 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
-
-    <meta charset="UTF-8">
-
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0">
-
-    <title>Blender Model - Moving Water</title>
-
-    <style>
-
-        html,
-        body {
-
-            margin: 0;
-
-            width: 100%;
-            height: 100%;
-
-            overflow: hidden;
-
-            background: #111;
-
-        }
-
-        canvas {
-
-            display: block;
-
-        }
-
-    </style>
-
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blender Model - Moving Water</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
+canvas{display:block}
+</style>
 </head>
-
-
 <body>
-
-
 <script type="importmap">
-
 {
-    "imports": {
-
-        "three":
-            "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-
-        "three/addons/":
-            "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-
-    }
+  "imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
 }
-
 </script>
-
-
 <script type="module">
-
-
 import * as THREE from 'three';
-
-import { GLTFLoader } from
-    'three/addons/loaders/GLTFLoader.js';
-
-import { OrbitControls } from
-    'three/addons/controls/OrbitControls.js';
-
-
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 
 // ============================================================
 // シーン
 // ============================================================
-
-const scene = new THREE.Scene();
-
-scene.background =
-    new THREE.Color(0x111111);
-
-
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x111111);
 
 // ============================================================
 // カメラ
 // ============================================================
-
-const camera =
-    new THREE.PerspectiveCamera(
-
-        45,
-
-        window.innerWidth /
-        window.innerHeight,
-
-        0.1,
-
-        1000
-
-    );
-
-camera.position.set(
-
-    0,
-    1,
-    5
-
-);
-
-
+const camera=new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,1000);
+camera.position.set(0,1,5);
 
 // ============================================================
 // レンダラー
 // ============================================================
-
-const renderer =
-    new THREE.WebGLRenderer({
-
-        antialias: true
-
-    });
-
-
-renderer.setPixelRatio(
-
-    Math.min(
-        window.devicePixelRatio,
-        2
-    )
-
-);
-
-
-renderer.setSize(
-
-    window.innerWidth,
-    window.innerHeight
-
-);
-
-
-renderer.outputColorSpace =
-    THREE.SRGBColorSpace;
-
-
-document.body.appendChild(
-    renderer.domElement
-);
-
-
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
 
 // ============================================================
 // ライト
 // ============================================================
+const ambientLight=new THREE.AmbientLight(0xffffff,2);
+scene.add(ambientLight);
 
-const ambientLight =
-    new THREE.AmbientLight(
-
-        0xffffff,
-        2
-
-    );
-
-scene.add(
-    ambientLight
-);
-
-
-
-const directionalLight =
-    new THREE.DirectionalLight(
-
-        0xffffff,
-        3
-
-    );
-
-directionalLight.position.set(
-
-    3,
-    5,
-    3
-
-);
-
-scene.add(
-    directionalLight
-);
-
-
+const directionalLight=new THREE.DirectionalLight(0xffffff,3);
+directionalLight.position.set(3,5,3);
+scene.add(directionalLight);
 
 // ============================================================
 // マウス操作
 // ============================================================
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;
 
-const controls =
-    new OrbitControls(
+// ============================================================
+// コレカ
+// ============================================================
+let koreka=null;
 
-        camera,
-        renderer.domElement
-
-    );
-
-controls.enableDamping = true;
-
-
+// 回転速度
+const korekaRotationSpeed=0.005;
 
 // ============================================================
 // 水面用 Uniform
 // ============================================================
-
-const waterUniforms = {
-
-    // 時間
-    uTime: {
-
-        value: 0
-
-    },
-
-
-    // Noiseの細かさ
-    uScale: {
-
-        value: 9
-
-    }
-
+const waterUniforms={
+  uTime:{value:0},
+  uScale:{value:9}
 };
-
-
 
 // ============================================================
 // Vertex Shader
 // ============================================================
-
-const waterVertexShader = `
-
+const waterVertexShader=`
 uniform float uTime;
 uniform float uScale;
-
-
 varying vec3 vWorldPosition;
 varying vec3 vWorldNormal;
 varying vec3 vPosition;
 
-
-// ============================================================
-// Random
-// ============================================================
-
-float random(vec2 st)
-{
-
-    return fract(
-
-        sin(
-
-            dot(
-
-                st,
-
-                vec2(
-                    12.9898,
-                    78.233
-                )
-
-            )
-
-        )
-
-        *
-
-        43758.5453123
-
-    );
-
+float random(vec2 st){
+  return fract(sin(dot(st,vec2(12.9898,78.233)))*43758.5453123);
 }
 
-
-
-// ============================================================
-// Noise
-// ============================================================
-
-float noise(vec2 st)
-{
-
-    vec2 i =
-        floor(st);
-
-    vec2 f =
-        fract(st);
-
-
-    float a =
-        random(i);
-
-    float b =
-        random(
-            i +
-            vec2(1.0, 0.0)
-        );
-
-    float c =
-        random(
-            i +
-            vec2(0.0, 1.0)
-        );
-
-    float d =
-        random(
-            i +
-            vec2(1.0, 1.0)
-        );
-
-
-    vec2 u =
-        f *
-        f *
-        (
-            3.0 -
-            2.0 *
-            f
-        );
-
-
-    return
-
-        mix(
-            a,
-            b,
-            u.x
-        )
-
-        +
-
-        (
-            c -
-            a
-        )
-
-        *
-
-        u.y
-
-        *
-
-        (
-            1.0 -
-            u.x
-        )
-
-        +
-
-        (
-            d -
-            b
-        )
-
-        *
-
-        u.x
-
-        *
-
-        u.y;
-
+float noise(vec2 st){
+  vec2 i=floor(st);
+  vec2 f=fract(st);
+  float a=random(i);
+  float b=random(i+vec2(1.0,0.0));
+  float c=random(i+vec2(0.0,1.0));
+  float d=random(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
 }
 
-
-
-// ============================================================
-// 波の高さ
-// ============================================================
-
-float getWave(vec2 position)
-{
-
-    float wave = 0.0;
-
-
-wave += noise(position * 9.0 + vec2(uTime * 0.15)) * 0.01;
-wave += noise(position * 20.0 - vec2(uTime * 0.10)) * 0.009;
-wave += noise(position * 25.0 + vec2(uTime * 0.20)) * 0.002;
-
-
-
-    return wave;
-
+float getWave(vec2 position){
+  float wave=0.0;
+  wave+=noise(position*9.0+vec2(uTime*0.15))*0.01;
+  wave+=noise(position*20.0-vec2(uTime*0.10))*0.009;
+  wave+=noise(position*25.0+vec2(uTime*0.20))*0.002;
+  return wave;
 }
 
-
-
-// ============================================================
-// メイン
-// ============================================================
-
-void main()
-{
-
-    // --------------------------------------------------------
-    // 元の座標
-    // --------------------------------------------------------
-
-    vec3 newPosition =
-        position;
-
-
-
-    // --------------------------------------------------------
-    // 水面の波
-    // --------------------------------------------------------
-
-    float wave =
-
-        getWave(
-
-            position.xz
-
-        );
-
-
-
-    // Y方向に動かす
-    newPosition.y +=
-        wave;
-
-
-
-    // --------------------------------------------------------
-    // ワールド座標
-    // --------------------------------------------------------
-
-    vec4 worldPosition =
-
-        modelMatrix *
-
-        vec4(
-
-            newPosition,
-
-            1.0
-
-        );
-
-
-
-    // --------------------------------------------------------
-    // Fragment Shaderへ渡す
-    // --------------------------------------------------------
-
-    vPosition =
-        newPosition;
-
-
-    vWorldPosition =
-        worldPosition.xyz;
-
-
-    vWorldNormal =
-
-        normalize(
-
-            mat3(modelMatrix) *
-            normal
-
-        );
-
-
-
-    // --------------------------------------------------------
-    // 描画
-    // --------------------------------------------------------
-
-    gl_Position =
-
-        projectionMatrix *
-
-        viewMatrix *
-
-        worldPosition;
-
+void main(){
+  vec3 newPosition=position;
+  float wave=getWave(position.xz);
+  newPosition.y+=wave;
+  vec4 worldPosition=modelMatrix*vec4(newPosition,1.0);
+  vPosition=newPosition;
+  vWorldPosition=worldPosition.xyz;
+  vWorldNormal=normalize(mat3(modelMatrix)*normal);
+  gl_Position=projectionMatrix*viewMatrix*worldPosition;
 }
-
 `;
-
-
 
 // ============================================================
 // Fragment Shader
 // ============================================================
-
-const waterFragmentShader = `
-
+const waterFragmentShader=`
 uniform float uTime;
-
 uniform float uScale;
-
-
 varying vec3 vWorldPosition;
-
 varying vec3 vWorldNormal;
-
 varying vec3 vPosition;
 
-
-
-// ============================================================
-// Random
-// ============================================================
-
-float random(vec2 st)
-{
-
-    return fract(
-
-        sin(
-
-            dot(
-
-                st,
-
-                vec2(
-                    12.9898,
-                    78.233
-                )
-
-            )
-
-        )
-
-        *
-
-        43758.5453123
-
-    );
-
+float random(vec2 st){
+  return fract(sin(dot(st,vec2(12.9898,78.233)))*43758.5453123);
 }
 
-
-
-// ============================================================
-// 2D Noise
-// ============================================================
-
-float noise(vec2 st)
-{
-
-    vec2 i =
-        floor(st);
-
-    vec2 f =
-        fract(st);
-
-
-    float a =
-        random(i);
-
-
-    float b =
-        random(
-
-            i +
-            vec2(
-                1.0,
-                0.0
-            )
-
-        );
-
-
-    float c =
-        random(
-
-            i +
-            vec2(
-                0.0,
-                1.0
-            )
-
-        );
-
-
-    float d =
-        random(
-
-            i +
-            vec2(
-                1.0,
-                1.0
-            )
-
-        );
-
-
-    vec2 u =
-
-        f *
-        f *
-        (
-            3.0 -
-            2.0 *
-            f
-        );
-
-
-    return
-
-        mix(
-            a,
-            b,
-            u.x
-        )
-
-        +
-
-        (
-            c -
-            a
-        )
-
-        *
-
-        u.y
-
-        *
-
-        (
-            1.0 -
-            u.x
-        )
-
-        +
-
-        (
-            d -
-            b
-        )
-
-        *
-
-        u.x
-
-        *
-
-        u.y;
-
+float noise(vec2 st){
+  vec2 i=floor(st);
+  vec2 f=fract(st);
+  float a=random(i);
+  float b=random(i+vec2(1.0,0.0));
+  float c=random(i+vec2(0.0,1.0));
+  float d=random(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
 }
 
-
-
-// ============================================================
-// FBM
-// ============================================================
-
-float fbm(vec2 st)
-{
-
-    float value =
-        0.0;
-
-    float amplitude =
-        0.5;
-
-    float frequency =
-        1.0;
-
-
-    for (
-        int i = 0;
-        i < 4;
-        i++
-    )
-    {
-
-        value +=
-
-            amplitude *
-
-            noise(
-
-                st *
-                frequency
-
-            );
-
-
-        frequency *=
-            2.0;
-
-
-        amplitude *=
-            0.5;
-
-    }
-
-
-    return value;
-
+float fbm(vec2 st){
+  float value=0.0;
+  float amplitude=0.5;
+  float frequency=1.0;
+  for(int i=0;i<4;i++){
+    value+=amplitude*noise(st*frequency);
+    frequency*=2.0;
+    amplitude*=0.5;
+  }
+  return value;
 }
 
-
-
-// ============================================================
-// Voronoi
-// ============================================================
-
-float voronoi(vec2 x)
-{
-
-    vec2 n =
-        floor(x);
-
-    vec2 f =
-        fract(x);
-
-
-    float minDist =
-        1.0;
-
-
-    for (
-        int j = -1;
-        j <= 1;
-        j++
-    )
-    {
-
-        for (
-            int i = -1;
-            i <= 1;
-            i++
-        )
-        {
-
-            vec2 neighbor =
-
-                vec2(
-
-                    float(i),
-                    float(j)
-
-                );
-
-
-            vec2 point =
-
-                neighbor +
-
-                vec2(
-
-                    random(
-
-                        n +
-                        neighbor
-
-                    ),
-
-                    random(
-
-                        n +
-                        neighbor +
-                        vec2(
-                            31.7,
-                            17.3
-                        )
-
-                    )
-
-                );
-
-
-            vec2 difference =
-
-                point -
-                f;
-
-
-            float distanceValue =
-
-                dot(
-
-                    difference,
-                    difference
-
-                );
-
-
-            minDist =
-
-                min(
-
-                    minDist,
-                    distanceValue
-
-                );
-
-        }
-
+float voronoi(vec2 x){
+  vec2 n=floor(x);
+  vec2 f=fract(x);
+  float minDist=1.0;
+  for(int j=-1;j<=1;j++){
+    for(int i=-1;i<=1;i++){
+      vec2 neighbor=vec2(float(i),float(j));
+      vec2 point=neighbor+vec2(
+        random(n+neighbor),
+        random(n+neighbor+vec2(31.7,17.3))
+      );
+      vec2 difference=point-f;
+      float distanceValue=dot(difference,difference);
+      minDist=min(minDist,distanceValue);
     }
-
-
-    return sqrt(
-        minDist
-    );
-
+  }
+  return sqrt(minDist);
 }
 
+vec3 rainbowColor(float value){
+  vec3 color1=vec3(0.20,0.07,0.09);
+  vec3 color2=vec3(0.22,0.14,0.07);
+  vec3 color3=vec3(0.23,0.21,0.08);
+  vec3 color4=vec3(0.08,0.23,0.13);
+  vec3 color5=vec3(0.07,0.20,0.23);
+  vec3 color6=vec3(0.07,0.11,0.23);
+  vec3 color7=vec3(0.17,0.07,0.23);
 
-
-// ============================================================
-// 虹色
-// ============================================================
-
-vec3 rainbowColor(float value)
-{
-
-    // 暗め・くすみ気味
-    vec3 color1 =
-        vec3(
-            0.20,
-            0.07,
-            0.09
-        );
-
-
-    vec3 color2 =
-        vec3(
-            0.22,
-            0.14,
-            0.07
-        );
-
-
-    vec3 color3 =
-        vec3(
-            0.23,
-            0.21,
-            0.08
-        );
-
-
-    vec3 color4 =
-        vec3(
-            0.08,
-            0.23,
-            0.13
-        );
-
-
-    vec3 color5 =
-        vec3(
-            0.07,
-            0.20,
-            0.23
-        );
-
-
-    vec3 color6 =
-        vec3(
-            0.07,
-            0.11,
-            0.23
-        );
-
-
-    vec3 color7 =
-        vec3(
-            0.17,
-            0.07,
-            0.23
-        );
-
-
-
-    if (
-        value < 0.16
-    )
-    {
-
-        return mix(
-
-            color1,
-            color2,
-
-            value /
-            0.16
-
-        );
-
-    }
-
-
-    else if (
-        value < 0.32
-    )
-    {
-
-        return mix(
-
-            color2,
-            color3,
-
-            (
-                value -
-                0.16
-            )
-            /
-            0.16
-
-        );
-
-    }
-
-
-    else if (
-        value < 0.48
-    )
-    {
-
-        return mix(
-
-            color3,
-            color4,
-
-            (
-                value -
-                0.32
-            )
-            /
-            0.16
-
-        );
-
-    }
-
-
-    else if (
-        value < 0.64
-    )
-    {
-
-        return mix(
-
-            color4,
-            color5,
-
-            (
-                value -
-                0.48
-            )
-            /
-            0.16
-
-        );
-
-    }
-
-
-    else if (
-        value < 0.80
-    )
-    {
-
-        return mix(
-
-            color5,
-            color6,
-
-            (
-                value -
-                0.64
-            )
-            /
-            0.16
-
-        );
-
-    }
-
-
-    else
-    {
-
-        return mix(
-
-            color6,
-            color7,
-
-            (
-                value -
-                0.80
-            )
-            /
-            0.20
-
-        );
-
-    }
-
+  if(value<0.16){
+    return mix(color1,color2,value/0.16);
+  }else if(value<0.32){
+    return mix(color2,color3,(value-0.16)/0.16);
+  }else if(value<0.48){
+    return mix(color3,color4,(value-0.32)/0.16);
+  }else if(value<0.64){
+    return mix(color4,color5,(value-0.48)/0.16);
+  }else if(value<0.80){
+    return mix(color5,color6,(value-0.64)/0.16);
+  }else{
+    return mix(color6,color7,(value-0.80)/0.20);
+  }
 }
 
+void main(){
+  vec2 position=vPosition.xz;
+  position*=uScale;
+  position.x+=uTime*0.08;
+  position.y+=uTime*0.04;
 
+  float noiseValue=fbm(position);
+  float voronoiValue=voronoi(position*0.73);
+  float pattern=noiseValue*0.65+voronoiValue*0.35;
 
-// ============================================================
-// メイン
-// ============================================================
+  vec3 color=rainbowColor(pattern);
 
-void main()
-{
+  vec3 viewDirection=normalize(cameraPosition-vWorldPosition);
+  vec3 normalDirection=normalize(vWorldNormal);
 
-    // ========================================================
-    // 水面の座標
-    // ========================================================
+  float fresnel=1.0-max(dot(normalDirection,viewDirection),0.0);
+  fresnel=smoothstep(0.15,0.85,fresnel);
 
-    vec2 position =
-        vPosition.xz;
+  color+=vec3(0.10,0.12,0.14)*fresnel;
 
+  color=mix(color,vec3(0.12,0.13,0.14),0.25);
 
+  color+=vec3(0.12)*smoothstep(0.65,1.0,pattern);
 
-    // ========================================================
-    // Noise Scale
-    // ========================================================
+  float alpha=mix(0.28,0.72,fresnel);
 
-    position *=
-        uScale;
-
-
-
-    // ========================================================
-    // 時間
-    // ========================================================
-
-    position.x +=
-        uTime *
-        0.08;
-
-
-    position.y +=
-        uTime *
-        0.04;
-
-
-
-    // ========================================================
-    // Noise
-    // ========================================================
-
-    float noiseValue =
-
-        fbm(
-            position
-        );
-
-
-
-    // ========================================================
-    // Voronoi
-    // ========================================================
-
-    float voronoiValue =
-
-        voronoi(
-
-            position *
-            0.73
-
-        );
-
-
-
-    // ========================================================
-    // Noise + Voronoi
-    // ========================================================
-
-    float pattern =
-
-        noiseValue *
-        0.65
-
-        +
-
-        voronoiValue *
-        0.35;
-
-
-
-    // ========================================================
-    // 虹色
-    // ========================================================
-
-    vec3 color =
-
-        rainbowColor(
-            pattern
-        );
-
-
-
-    // ========================================================
-    // Fresnel
-    // Layer Weight相当
-    // ========================================================
-
-    vec3 viewDirection =
-
-        normalize(
-
-            cameraPosition -
-            vWorldPosition
-
-        );
-
-
-    vec3 normalDirection =
-
-        normalize(
-            vWorldNormal
-        );
-
-
-    float fresnel =
-
-        1.0 -
-
-        max(
-
-            dot(
-
-                normalDirection,
-                viewDirection
-
-            ),
-
-            0.0
-
-        );
-
-
-
-    // ========================================================
-    // ColorRamp相当
-    // ========================================================
-
-    fresnel =
-
-        smoothstep(
-
-            0.15,
-            0.85,
-            fresnel
-
-        );
-
-
-
-    // ========================================================
-    // 斜めから見たときの光
-    // ========================================================
-
-    color +=
-
-        vec3(
-
-            0.10,
-            0.12,
-            0.14
-
-        )
-
-        *
-
-        fresnel;
-
-
-
-    // ========================================================
-    // 全体を少しくすませる
-    // ========================================================
-
-    color =
-
-        mix(
-
-            color,
-
-            vec3(
-
-                0.12,
-                0.13,
-                0.14
-
-            ),
-
-            0.25
-
-        );
-
-
-
-    // ========================================================
-    // 明るい部分
-    // ========================================================
-
-    color +=
-
-        vec3(
-            0.12
-        )
-
-        *
-
-        smoothstep(
-
-            0.65,
-            1.0,
-            pattern
-
-        );
-
-
-
-    // ========================================================
-    // 透明度
-    // ========================================================
-
-    float alpha =
-
-        mix(
-
-            0.28,
-            0.72,
-
-            fresnel
-
-        );
-
-
-
-    // ========================================================
-    // 最終色
-    // ========================================================
-
-    gl_FragColor =
-
-        vec4(
-
-            color,
-            alpha
-
-        );
-
+  gl_FragColor=vec4(color,alpha);
 }
-
 `;
-
-
 
 // ============================================================
 // 水面 ShaderMaterial
 // ============================================================
-
-const waterMaterial =
-
-    new THREE.ShaderMaterial({
-
-        uniforms:
-            waterUniforms,
-
-        vertexShader:
-            waterVertexShader,
-
-        fragmentShader:
-            waterFragmentShader,
-
-        side:
-            THREE.DoubleSide,
-
-        transparent:
-            true,
-
-        depthWrite:
-            false
-
-    });
-
-
+const waterMaterial=new THREE.ShaderMaterial({
+  uniforms:waterUniforms,
+  vertexShader:waterVertexShader,
+  fragmentShader:waterFragmentShader,
+  side:THREE.DoubleSide,
+  transparent:true,
+  depthWrite:false
+});
 
 // ============================================================
 // GLB読み込み
 // ============================================================
-
-const loader =
-    new GLTFLoader();
-
+const loader=new GLTFLoader();
 
 loader.load(
-
-    'character.glb',
-
-
-    function (gltf)
-    {
-
-        console.log(
-            'GLB読み込み成功'
-        );
-
-
-        console.log(
-
-            'アニメーション:',
-            gltf.animations
-
-        );
-
-
-        const model =
-            gltf.scene;
-
-
-
-        // ====================================================
-        // GLBの中身
-        // ====================================================
-
-        model.traverse(
-
-            function (object)
-            {
-
-                console.log(
-
-                    'オブジェクト:',
-                    object.name,
-                    '種類:',
-                    object.type
-
-                );
-
-
-
-                // ==================================================
-                // 水面だけShaderMaterial
-                // ==================================================
-
-                if (
-
-                    object.isMesh &&
-
-                    object.name ===
-                    '水面'
-
-                )
-                {
-
-                    console.log(
-
-                        '★ 水面をShaderMaterialに変更しました'
-
-                    );
-
-
-                    object.material =
-                        waterMaterial;
-
-                }
-
-            }
-
-        );
-
-
-
-        // ====================================================
-        // シーンに追加
-        // ====================================================
-
-        scene.add(
-            model
-        );
-
-
-
-        // ====================================================
-        // モデルの大きさ
-        // ====================================================
-
-        const box =
-
-            new THREE.Box3()
-                .setFromObject(
-                    model
-                );
-
-
-        const center =
-
-            box.getCenter(
-
-                new THREE.Vector3()
-
-            );
-
-
-        const size =
-
-            box.getSize(
-
-                new THREE.Vector3()
-
-            );
-
-
-
-        // ====================================================
-        // 中央配置
-        // ====================================================
-
-        model.position.sub(
-            center
-        );
-
-
-
-        // ====================================================
-        // カメラ調整
-        // ====================================================
-
-        const maxSize =
-
-            Math.max(
-
-                size.x,
-                size.y,
-                size.z
-
-            );
-
-
-        camera.position.set(
-
-            0,
-
-            maxSize * 0.5,
-
-            maxSize * 2.5
-
-        );
-
-
-        controls.target.set(
-
-            0,
-            0,
-            0
-
-        );
-
-
-        controls.update();
-
-    },
-
-
-    undefined,
-
-
-    function (error)
-    {
-
-        console.error(
-
-            'GLB読み込みエラー:',
-            error
-
-        );
-
-    }
-
+  'character.glb',
+  function(gltf){
+    console.log('GLB読み込み成功');
+    console.log('アニメーション:',gltf.animations);
+
+    const model=gltf.scene;
+
+    model.traverse(function(object){
+      console.log('オブジェクト:',object.name,'種類:',object.type);
+
+      // コレカを取得
+      if(object.name==='コレカ'){
+        koreka=object;
+        console.log('★ コレカを回転対象にしました');
+      }
+
+      // 水面だけShaderMaterial
+      if(object.isMesh&&object.name==='水面'){
+        console.log('★ 水面をShaderMaterialに変更しました');
+        object.material=waterMaterial;
+      }
+    });
+
+    scene.add(model);
+
+    // ========================================================
+    // モデルの大きさ
+    // ========================================================
+    const box=new THREE.Box3().setFromObject(model);
+    const center=box.getCenter(new THREE.Vector3());
+    const size=box.getSize(new THREE.Vector3());
+
+    // ========================================================
+    // 中央配置
+    // ========================================================
+    model.position.sub(center);
+
+    // ========================================================
+    // カメラ調整
+    // ========================================================
+    const maxSize=Math.max(size.x,size.y,size.z);
+    camera.position.set(0,maxSize*0.5,maxSize*2.5);
+    controls.target.set(0,0,0);
+    controls.update();
+  },
+  undefined,
+  function(error){
+    console.error('GLB読み込みエラー:',error);
+  }
 );
-
-
 
 // ============================================================
 // アニメーション
 // ============================================================
+const clock=new THREE.Clock();
 
-const clock =
-    new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
 
+  const elapsedTime=clock.getElapsedTime();
 
-function animate()
-{
+  // 水面アニメーション
+  waterUniforms.uTime.value=elapsedTime;
 
-    requestAnimationFrame(
-        animate
-    );
+  // コレカを自動回転
+  if(koreka){
+    koreka.rotation.y+=korekaRotationSpeed;
+  }
 
+  // マウス操作
+  controls.update();
 
-    // ========================================================
-    // 経過時間
-    // ========================================================
-
-    const elapsedTime =
-
-        clock.getElapsedTime();
-
-
-    waterUniforms.uTime.value =
-
-        elapsedTime;
-
-
-
-    // ========================================================
-    // マウス操作
-    // ========================================================
-
-    controls.update();
-
-
-
-    // ========================================================
-    // 描画
-    // ========================================================
-
-    renderer.render(
-
-        scene,
-        camera
-
-    );
-
+  // 描画
+  renderer.render(scene,camera);
 }
 
-
 animate();
-
-
 
 // ============================================================
 // ウィンドウサイズ変更
 // ============================================================
-
-window.addEventListener(
-
-    'resize',
-
-    function ()
-    {
-
-        camera.aspect =
-
-            window.innerWidth /
-            window.innerHeight;
-
-
-        camera.updateProjectionMatrix();
-
-
-        renderer.setSize(
-
-            window.innerWidth,
-            window.innerHeight
-
-        );
-
-    }
-
-);
-
-
+window.addEventListener('resize',function(){
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
 </script>
-
-
 </body>
-
 </html>
+```
