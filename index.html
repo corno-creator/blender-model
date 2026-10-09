@@ -1,702 +1,621 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Blender Model - Moving Water</title>
-<style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
-canvas{display:block}
-</style>
-</head>
-<body>
-<script type="importmap">
-{
-"imports":{
-"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
-}
-}
-</script>
-<script type="module">
-import * as THREE from 'three';
-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-
-// ============================================================
-// シーン
-// ============================================================
-const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x111111);
-
-// ============================================================
-// カメラ
-// ============================================================
-const camera=new THREE.PerspectiveCamera(
-45,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
-);
-camera.position.set(0,1,5);
-
-// ============================================================
-// レンダラー
-// ============================================================
-const renderer=new THREE.WebGLRenderer({
-antialias:true
-});
-renderer.setPixelRatio(
-Math.min(window.devicePixelRatio,2)
-);
-renderer.setSize(
-window.innerWidth,
-window.innerHeight
-);
-renderer.outputColorSpace=THREE.SRGBColorSpace;
-document.body.appendChild(renderer.domElement);
-
-// ============================================================
-// ライト
-// ============================================================
-const ambientLight=new THREE.AmbientLight(
-0xffffff,
-2
-);
-scene.add(ambientLight);
-
-const directionalLight=new THREE.DirectionalLight(
-0xffffff,
-3
-);
-directionalLight.position.set(3,5,3);
-scene.add(directionalLight);
-
-// ============================================================
-// マウス操作
-// ============================================================
-const controls=new OrbitControls(
-camera,
-renderer.domElement
-);
-controls.enableDamping=true;
-
-// ============================================================
-// GLBアニメーション用
-// ============================================================
-let mixer=null;
-
-// ============================================================
-// 水面用Uniform
-// ============================================================
-const waterUniforms={
-uTime:{value:0},
-uScale:{value:9}
-};
-
-// ============================================================
-// Vertex Shader
-// ============================================================
-const waterVertexShader=`
-uniform float uTime;
-uniform float uScale;
-varying vec3 vWorldPosition;
-varying vec3 vWorldNormal;
-varying vec3 vPosition;
+import bpy
 
-float random(vec2 st){
-return fract(
-sin(dot(st,vec2(12.9898,78.233)))*43758.5453123
-);
-}
+# ========================================
+# 設定
+# ========================================
 
-float noise(vec2 st){
-vec2 i=floor(st);
-vec2 f=fract(st);
+EMITTER_NAME = "球"
+SOURCE_NAME = "Sphere"
+COLLECTION_NAME = "Particle_Converted"
 
-float a=random(i);
-float b=random(i+vec2(1.0,0.0));
-float c=random(i+vec2(0.0,1.0));
-float d=random(i+vec2(1.0,1.0));
+START_FRAME = 1
+END_FRAME = 400
 
-vec2 u=f*f*(3.0-2.0*f);
+# Trueなら位置・回転・サイズをキーフレーム化
+KEY_LOCATION = True
+KEY_ROTATION = True
+KEY_SCALE = True
 
-return mix(a,b,u.x)
-+(c-a)*u.y*(1.0-u.x)
-+(d-b)*u.x*u.y;
-}
+# 補間方法
+USE_LINEAR = True
 
-float getWave(vec2 position){
-float wave=0.0;
 
-wave+=noise(
-position*9.0+vec2(uTime*0.15)
-)*0.01;
+# ========================================
+# コレクション作成
+# ========================================
 
-wave+=noise(
-position*20.0-vec2(uTime*0.10)
-)*0.009;
+def get_or_create_collection():
 
-wave+=noise(
-position*25.0+vec2(uTime*0.20)
-)*0.002;
+    collection = bpy.data.collections.get(COLLECTION_NAME)
 
-return wave;
-}
+    if collection is None:
 
-void main(){
+        collection = bpy.data.collections.new(
+            COLLECTION_NAME
+        )
 
-vec3 newPosition=position;
+        bpy.context.scene.collection.children.link(
+            collection
+        )
 
-float wave=getWave(position.xz);
+    return collection
 
-newPosition.y+=wave;
 
-vec4 worldPosition=
-modelMatrix*vec4(newPosition,1.0);
+# ========================================
+# 以前作ったParticleオブジェクトを削除
+# ========================================
 
-vPosition=newPosition;
+def clear_collection(collection):
 
-vWorldPosition=worldPosition.xyz;
+    for obj in list(collection.objects):
 
-vWorldNormal=
-normalize(mat3(modelMatrix)*normal);
+        bpy.data.objects.remove(
+            obj,
+            do_unlink=True
+        )
 
-gl_Position=
-projectionMatrix*
-viewMatrix*
-worldPosition;
-}
-`;
 
-// ============================================================
-// Fragment Shader
-// ============================================================
-const waterFragmentShader=`
-uniform float uTime;
-uniform float uScale;
+# ========================================
+# Blender 5.x
+# ActionからFCurveを取得
+# ========================================
 
-varying vec3 vWorldPosition;
-varying vec3 vWorldNormal;
-varying vec3 vPosition;
+def get_action_fcurves(action, anim_data):
 
-float random(vec2 st){
-return fract(
-sin(dot(st,vec2(12.9898,78.233)))*43758.5453123
-);
-}
+    fcurves = []
 
-float noise(vec2 st){
+    if action is None:
+        return fcurves
 
-vec2 i=floor(st);
-vec2 f=fract(st);
+    if anim_data is None:
+        return fcurves
 
-float a=random(i);
-float b=random(i+vec2(1.0,0.0));
-float c=random(i+vec2(0.0,1.0));
-float d=random(i+vec2(1.0,1.0));
+    # Blender 5.xでは
+    #
+    # Action
+    #   └ Layers
+    #       └ Strips
+    #           └ Channelbag
+    #               └ FCurves
+    #
+    # という構造になっている
 
-vec2 u=f*f*(3.0-2.0*f);
+    for layer in action.layers:
 
-return mix(a,b,u.x)
-+(c-a)*u.y*(1.0-u.x)
-+(d-b)*u.x*u.y;
-}
+        for strip in layer.strips:
 
-float fbm(vec2 st){
+            if strip.type != 'KEYFRAME':
+                continue
 
-float value=0.0;
-float amplitude=0.5;
-float frequency=1.0;
+            try:
 
-for(int i=0;i<4;i++){
+                channelbag = strip.channelbag(
+                    anim_data.action_slot
+                )
 
-value+=
-  amplitude\*
-  noise(st\*frequency);
+            except Exception:
 
-frequency\*=2.0;
-amplitude\*=0.5;
+                channelbag = None
 
-}
+            if channelbag is None:
+                continue
 
-return value;
-}
+            for fcurve in channelbag.fcurves:
 
-float voronoi(vec2 x){
+                fcurves.append(fcurve)
 
-vec2 n=floor(x);
-vec2 f=fract(x);
+    return fcurves
 
-float minDist=1.0;
 
-for(int j=-1;j<=1;j++){
+# ========================================
+# Particle用オブジェクト作成
+# ========================================
 
-for(int i=-1;i<=1;i++){
+def create_particle_objects(
+    particle_count,
+    source_obj,
+    collection
+):
 
-  vec2 neighbor=
-    vec2(float(i),float(j));
+    objects = []
 
-  vec2 point=
-    neighbor+
-    vec2(
-      random(n+neighbor),
-      random(
-        n+neighbor+
-        vec2(31.7,17.3)
-      )
-    );
+    mesh = source_obj.data
 
-  vec2 difference=
-    point-f;
+    source_scale = source_obj.scale.copy()
 
-  float distanceValue=
-    dot(
-      difference,
-      difference
-    );
+    print("")
+    print("元オブジェクト:", source_obj.name)
 
-  minDist=
-    min(
-      minDist,
-      distanceValue
-    );
-}
+    print(
+        "元Scale:",
+        source_scale.x,
+        source_scale.y,
+        source_scale.z
+    )
 
-}
+    print(
+        "作成するParticleオブジェクト数:",
+        particle_count
+    )
 
-return sqrt(minDist);
-}
+    for i in range(particle_count):
 
-vec3 rainbowColor(float value){
+        obj_name = "particle.{:03d}".format(i)
 
-vec3 color1=
-vec3(0.20,0.07,0.09);
+        obj = bpy.data.objects.new(
+            obj_name,
+            mesh
+        )
 
-vec3 color2=
-vec3(0.22,0.14,0.07);
+        collection.objects.link(obj)
 
-vec3 color3=
-vec3(0.23,0.21,0.08);
+        obj.rotation_mode = 'QUATERNION'
 
-vec3 color4=
-vec3(0.08,0.23,0.13);
+        objects.append(obj)
 
-vec3 color5=
-vec3(0.07,0.20,0.23);
+    return objects, source_scale
 
-vec3 color6=
-vec3(0.07,0.11,0.23);
 
-vec3 color7=
-vec3(0.17,0.07,0.23);
+# ========================================
+# ParticleのTransformを設定
+# ========================================
 
-if(value<0.16){
+def set_transform(
+    particle,
+    obj,
+    source_scale
+):
 
-return mix(
-  color1,
-  color2,
-  value/0.16
-);
+    # ------------------------------------
+    # Location
+    # ------------------------------------
 
-}else if(value<0.32){
+    obj.location = particle.location
 
-return mix(
-  color2,
-  color3,
-  (value-0.16)/0.16
-);
+    # ------------------------------------
+    # Rotation
+    # ------------------------------------
 
-}else if(value<0.48){
+    obj.rotation_mode = 'QUATERNION'
 
-return mix(
-  color3,
-  color4,
-  (value-0.32)/0.16
-);
+    obj.rotation_quaternion = particle.rotation
 
-}else if(value<0.64){
+    # ------------------------------------
+    # Scale
+    # ------------------------------------
 
-return mix(
-  color4,
-  color5,
-  (value-0.48)/0.16
-);
+    size = particle.size
 
-}else if(value<0.80){
+    obj.scale = (
+        source_scale.x * size,
+        source_scale.y * size,
+        source_scale.z * size
+    )
 
-return mix(
-  color5,
-  color6,
-  (value-0.64)/0.16
-);
 
-}else{
+# ========================================
+# キーフレーム作成
+# ========================================
 
-return mix(
-  color6,
-  color7,
-  (value-0.80)/0.20
-);
+def insert_keyframes(obj):
 
-}
-}
+    if KEY_LOCATION:
 
-void main(){
+        obj.keyframe_insert(
+            data_path="location"
+        )
 
-vec2 position=
-vPosition.xz;
+    if KEY_ROTATION:
 
-position*=uScale;
+        obj.keyframe_insert(
+            data_path="rotation_quaternion"
+        )
 
-position.x+=
-uTime*0.08;
+    if KEY_SCALE:
 
-position.y+=
-uTime*0.04;
+        obj.keyframe_insert(
+            data_path="scale"
+        )
 
-float noiseValue=
-fbm(position);
 
-float voronoiValue=
-voronoi(position*0.73);
+# ========================================
+# キーフレーム補間
+# ========================================
 
-float pattern=
-noiseValue*0.65+
-voronoiValue*0.35;
+def set_interpolation(obj):
 
-vec3 color=
-rainbowColor(pattern);
+    if not USE_LINEAR:
+        return
 
-vec3 viewDirection=
-normalize(
-cameraPosition-
-vWorldPosition
-);
+    if obj.animation_data is None:
+        return
 
-vec3 normalDirection=
-normalize(
-vWorldNormal
-);
+    if obj.animation_data.action is None:
+        return
 
-float fresnel=
-1.0-
-max(
-dot(
-normalDirection,
-viewDirection
-),
-0.0
-);
+    action = obj.animation_data.action
 
-fresnel=
-smoothstep(
-0.15,
-0.85,
-fresnel
-);
+    fcurves = get_action_fcurves(
+        action,
+        obj.animation_data
+    )
 
-color+=
-vec3(0.10,0.12,0.14)*
-fresnel;
+    for fcurve in fcurves:
 
-color=
-mix(
-color,
-vec3(0.12,0.13,0.14),
-0.25
-);
+        for keyframe in fcurve.keyframe_points:
 
-color+=
-vec3(0.12)*
-smoothstep(
-0.65,
-1.0,
-pattern
-);
+            keyframe.interpolation = 'LINEAR'
 
-float alpha=
-mix(
-0.28,
-0.72,
-fresnel
-);
 
-gl_FragColor=
-vec4(
-color,
-alpha
-);
-}
-`;
+# ========================================
+# メイン処理
+# ========================================
 
-// ============================================================
-// 水面ShaderMaterial
-// ============================================================
-const waterMaterial=new THREE.ShaderMaterial({
+def main():
 
-uniforms:waterUniforms,
+    print("")
+    print("========================================")
+    print("Particle → Keyframe")
+    print("Blender 5.2対応")
+    print("========================================")
 
-vertexShader:
-waterVertexShader,
+    scene = bpy.context.scene
 
-fragmentShader:
-waterFragmentShader,
+    # ------------------------------------
+    # 発生元取得
+    # ------------------------------------
 
-side:THREE.DoubleSide,
+    emitter = bpy.data.objects.get(
+        EMITTER_NAME
+    )
 
-transparent:true,
+    if emitter is None:
 
-depthWrite:false
-});
+        print("")
+        print("ERROR")
+        print(
+            "発生元「{}」が見つかりません".format(
+                EMITTER_NAME
+            )
+        )
 
-// ============================================================
-// GLB読み込み
-// ============================================================
-const loader=new GLTFLoader();
+        return
 
-loader.load(
+    print("")
+    print("発生元:", emitter.name)
 
-'character.glb',
+    # ------------------------------------
+    # Particle System確認
+    # ------------------------------------
 
-function(gltf){
+    if len(emitter.particle_systems) == 0:
 
-console.log(
-  'GLB読み込み成功'
-);
+        print("")
+        print("ERROR")
+        print("Particle Systemがありません")
 
-console.log(
-  'GLBアニメーション数:',
-  gltf.animations.length
-);
+        return
 
-console.log(
-  'GLBアニメーション:',
-  gltf.animations
-);
+    print(
+        "Particle System数:",
+        len(emitter.particle_systems)
+    )
 
-const model=
-  gltf.scene;
+    # ------------------------------------
+    # 元オブジェクト取得
+    # ------------------------------------
 
-// ========================================================
-// オブジェクト確認
-// ========================================================
+    source_obj = bpy.data.objects.get(
+        SOURCE_NAME
+    )
 
-model.traverse(
-  function(object){
+    if source_obj is None:
 
-    console.log(
-      'オブジェクト:',
-      object.name,
-      '種類:',
-      object.type
-    );
+        print("")
+        print("ERROR")
 
-    // ------------------------------------
-    // 水面
-    // ------------------------------------
+        print(
+            "Particle表示用オブジェクト「{}」が見つかりません".format(
+                SOURCE_NAME
+            )
+        )
 
-    if(
-      object.isMesh &&
-      object.name==='水面'
-    ){
+        return
 
-      console.log(
-        '★ 水面をShaderMaterialに変更しました'
-      );
+    print(
+        "Particle表示用オブジェクト:",
+        source_obj.name
+    )
 
-      object.material=
-        waterMaterial;
-    }
-  }
-);
+    # ------------------------------------
+    # 元Scale
+    # ------------------------------------
 
-// ========================================================
-// シーンへ追加
-// ========================================================
+    source_scale = source_obj.scale.copy()
 
-scene.add(model);
+    print("")
+    print("元オブジェクトScale:")
+    print("X:", source_scale.x)
+    print("Y:", source_scale.y)
+    print("Z:", source_scale.z)
 
-// ========================================================
-// GLBアニメーション再生
-// ========================================================
+    # ------------------------------------
+    # コレクション
+    # ------------------------------------
 
-if(gltf.animations.length>0){
+    collection = get_or_create_collection()
 
-  mixer=
-    new THREE.AnimationMixer(model);
+    clear_collection(collection)
 
-  gltf.animations.forEach(
-    function(clip){
+    # ------------------------------------
+    # 評価済みParticle取得
+    # ------------------------------------
 
-      console.log(
-        '★ アニメーション再生:',
-        clip.name,
-        'duration:',
-        clip.duration
-      );
+    depsgraph = bpy.context.evaluated_depsgraph_get()
 
-      const action=
-        mixer.clipAction(clip);
+    # ------------------------------------
+    # Particle数取得
+    # ------------------------------------
 
-      action.reset();
+    evaluated_emitter = emitter.evaluated_get(
+        depsgraph
+    )
 
-      action.setLoop(
-        THREE.LoopRepeat,
-        Infinity
-      );
+    evaluated_ps = (
+        evaluated_emitter.particle_systems[0]
+    )
 
-      action.play();
-    }
-  );
+    particle_count = len(
+        evaluated_ps.particles
+    )
 
-}else{
+    print("")
+    print(
+        "評価済みParticle数:",
+        particle_count
+    )
 
-  console.warn(
-    'GLBにアニメーションがありません'
-  );
-}
+    if particle_count == 0:
 
-// ========================================================
-// モデルの大きさ
-// ========================================================
+        print("")
+        print("ERROR")
+        print("評価済みParticleが0個です")
 
-const box=
-  new THREE.Box3()
-    .setFromObject(model);
+        return
 
-const center=
-  box.getCenter(
-    new THREE.Vector3()
-  );
+    # ------------------------------------
+    # Particleオブジェクト作成
+    # ------------------------------------
 
-const size=
-  box.getSize(
-    new THREE.Vector3()
-  );
+    particle_objects, source_scale = (
+        create_particle_objects(
+            particle_count,
+            source_obj,
+            collection
+        )
+    )
 
-// ========================================================
-// 中央配置
-// ========================================================
+    print("")
+    print(
+        "生成オブジェクト数:",
+        len(particle_objects)
+    )
 
-model.position.sub(
-  center
-);
+    # ------------------------------------
+    # フレーム範囲
+    # ------------------------------------
 
-// ========================================================
-// カメラ調整
-// ========================================================
+    start_frame = START_FRAME
+    end_frame = END_FRAME
 
-const maxSize=
-  Math.max(
-    size.x,
-    size.y,
-    size.z
-  );
+    print("")
+    print(
+        "フレーム:",
+        start_frame,
+        "～",
+        end_frame
+    )
 
-camera.position.set(
-  0,
-  maxSize\*0.5,
-  maxSize\*2.5
-);
+    print("")
+    print("========================================")
+    print("キーフレーム作成開始")
+    print("========================================")
 
-controls.target.set(
-  0,
-  0,
-  0
-);
+    # ====================================
+    # フレームごとの処理
+    # ====================================
 
-controls.update();
+    for frame in range(
+        start_frame,
+        end_frame + 1
+    ):
 
-},
+        # --------------------------------
+        # フレーム変更
+        # --------------------------------
 
-undefined,
+        scene.frame_set(frame)
 
-function(error){
+        # --------------------------------
+        # Dependency Graph更新
+        # --------------------------------
 
-console.error(
-  'GLB読み込みエラー:',
-  error
-);
+        bpy.context.view_layer.update()
 
-}
-);
+        # --------------------------------
+        # 評価済みEmitter取得
+        # --------------------------------
 
-// ============================================================
-// アニメーション
-// ============================================================
-const clock=
-new THREE.Clock();
+        depsgraph = (
+            bpy.context.evaluated_depsgraph_get()
+        )
 
-function animate(){
+        evaluated_emitter = emitter.evaluated_get(
+            depsgraph
+        )
 
-requestAnimationFrame(
-animate
-);
+        evaluated_ps = (
+            evaluated_emitter.particle_systems[0]
+        )
 
-const delta=
-clock.getDelta();
+        particles = evaluated_ps.particles
 
-const elapsedTime=
-clock.getElapsedTime();
+        # --------------------------------
+        # Particle数確認
+        # --------------------------------
 
-// ========================================================
-// GLBアニメーション
-// ========================================================
+        count = min(
+            len(particles),
+            len(particle_objects)
+        )
 
-if(mixer){
+        # --------------------------------
+        # Particleごとの処理
+        # --------------------------------
 
-mixer.update(
-  delta
-);
+        for i in range(count):
 
-}
+            particle = particles[i]
 
-// ========================================================
-// 水面アニメーション
-// ========================================================
+            obj = particle_objects[i]
 
-waterUniforms.uTime.value=
-elapsedTime;
+            # ----------------------------
+            # Particleが生存している場合
+            # ----------------------------
 
-// ========================================================
-// マウス操作
-// ========================================================
+            if particle.alive_state == 'ALIVE':
 
-controls.update();
+                set_transform(
+                    particle,
+                    obj,
+                    source_scale
+                )
 
-// ========================================================
-// 描画
-// ========================================================
+                insert_keyframes(obj)
 
-renderer.render(
-scene,
-camera
-);
-}
+            else:
 
-animate();
+                # ------------------------
+                # 生存していないParticle
+                # ------------------------
 
-// ============================================================
-// ウィンドウサイズ変更
-// ============================================================
-window.addEventListener(
-'resize',
-function(){
+                obj.scale = (
+                    0.0,
+                    0.0,
+                    0.0
+                )
 
-camera.aspect=
-  window\.innerWidth/
-  window\.innerHeight;
+                insert_keyframes(obj)
 
-camera.updateProjectionMatrix();
+        # --------------------------------
+        # 進捗表示
+        # --------------------------------
 
-renderer.setSize(
-  window\.innerWidth,
-  window\.innerHeight
-);
+        if (
+            frame == start_frame
+            or
+            frame == end_frame
+            or
+            frame % 20 == 0
+        ):
 
-}
-);
-</script>
-</body>
-</html>
+            print(
+                "Frame {} / {}  Particle {}".format(
+                    frame,
+                    end_frame,
+                    count
+                )
+            )
+
+    # ====================================
+    # 補間設定
+    # ====================================
+
+    print("")
+    print("キーフレーム補間設定中...")
+
+    for obj in particle_objects:
+
+        set_interpolation(obj)
+
+    # ====================================
+    # 最初のフレームへ戻す
+    # ====================================
+
+    scene.frame_set(start_frame)
+
+    bpy.context.view_layer.update()
+
+    # ====================================
+    # 結果確認
+    # ====================================
+
+    print("")
+    print("========================================")
+    print("キーフレーム確認")
+    print("========================================")
+
+    success_count = 0
+
+    for obj in particle_objects:
+
+        if (
+            obj.animation_data is not None
+            and
+            obj.animation_data.action is not None
+        ):
+
+            total_keys = 0
+
+            fcurves = get_action_fcurves(
+                obj.animation_data.action,
+                obj.animation_data
+            )
+
+            for fcurve in fcurves:
+
+                total_keys += len(
+                    fcurve.keyframe_points
+                )
+
+            if total_keys > 0:
+
+                success_count += 1
+
+    print(
+        "キーフレームあり:",
+        success_count,
+        "/",
+        len(particle_objects)
+    )
+
+    print("")
+    print("========================================")
+    print("処理完了")
+    print("========================================")
+
+    print(
+        "変換先コレクション:",
+        COLLECTION_NAME
+    )
+
+    print(
+        "オブジェクト数:",
+        len(particle_objects)
+    )
+
+    print(
+        "Particle System元:",
+        emitter.name
+    )
+
+    print("")
+    print("コレカには変更を加えていません。")
+    print("========================================")
+
+
+# ========================================
+# 実行
+# ========================================
+
+main()
