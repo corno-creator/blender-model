@@ -112,9 +112,9 @@ float getWave(vec2 position)
 {
     float wave = 0.0;
 
-wave += noise(position * 2.0 + vec2(uTime * 0.15)) * 0.009;
-wave += noise(position * 4.0 - vec2(uTime * 0.10)) * 0.008;
-wave += noise(position * 8.0 + vec2(uTime * 0.20)) * 0.002;
+wave += noise(position * 1.0 + vec2(uTime * 0.15)) * 0.009;
+wave += noise(position * 2.0 - vec2(uTime * 0.10)) * 0.008;
+wave += noise(position * 3.0 + vec2(uTime * 0.20)) * 0.002;
 
     return wave;
 }
