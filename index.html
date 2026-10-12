@@ -112,20 +112,9 @@ float getWave(vec2 position)
 {
     float wave = 0.0;
 
-    // 大きな波
-    wave += noise(
-        position * 2.0 + vec2(uTime * 0.15)
-    ) * 0.12;
-
-    // 中くらいの波
-    wave += noise(
-        position * 4.0 - vec2(uTime * 0.10)
-    ) * 0.05;
-
-    // 細かい波
-    wave += noise(
-        position * 8.0 + vec2(uTime * 0.20)
-    ) * 0.02;
+wave += noise(position * 2.0 + vec2(uTime * 0.15)) * 0.03;
+wave += noise(position * 4.0 - vec2(uTime * 0.10)) * 0.012;
+wave += noise(position * 8.0 + vec2(uTime * 0.20)) * 0.005;
 
     return wave;
 }
