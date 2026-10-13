@@ -43,9 +43,7 @@ html,body{
     touch-action:manipulation;
     -webkit-appearance:none;
 }
-#start-button:disabled{
-    opacity:0.7;
-}
+#start-button:disabled{opacity:0.7}
 #message{
     position:fixed;
     z-index:1001;
@@ -59,6 +57,7 @@ html,body{
     line-height:1.6;
     text-shadow:0 1px 5px #000;
     pointer-events:none;
+    overflow-wrap:anywhere;
 }
 #hint{
     position:fixed;
@@ -73,6 +72,7 @@ html,body{
     line-height:1.6;
     text-shadow:0 1px 5px #000;
     pointer-events:none;
+    overflow-wrap:anywhere;
 }
 </style>
 </head>
@@ -111,16 +111,21 @@ const WATER_SCALE=6.8;
 // ========================================
 // HTML要素
 // ========================================
-const container=document.querySelector('#ar-container');
-const startButton=document.querySelector('#start-button');
-const message=document.querySelector('#message');
-const hint=document.querySelector('#hint');
+const container=document.getElementById('ar-container');
+const startButton=document.getElementById('start-button');
+const message=document.getElementById('message');
+const hint=document.getElementById('hint');
 
-function showError(text,error){
-    console.error(text,error);
-    message.textContent=text;
-    hint.textContent='ページのファイル名とカメラの許可を確認してください';
-}
+// ========================================
+// 状態管理
+// ========================================
+let mindar=null;
+let renderer=null;
+let modelGroup=null;
+let mixer=null;
+let arStarted=false;
+let arStarting=false;
+let lastTime=0;
 
 // ========================================
 // 水面シェーダー
@@ -266,15 +271,8 @@ const waterMaterial=new THREE.ShaderMaterial({
 
 // ========================================
 // GLB読み込み
+// ページ表示中に読み込みを開始しておく
 // ========================================
-let mixer=null;
-let modelLoaded=false;
-let arStarted=false;
-let targetFound=false;
-let lastTime=0;
-let mindar=null;
-let renderer=null;
-
 const loader=new GLTFLoader();
 
 const modelPromise=new Promise((resolve,reject)=>{
@@ -286,7 +284,6 @@ const modelPromise=new Promise((resolve,reject)=>{
                 console.log('GLB読み込み成功');
                 console.log('アニメーション:',gltf.animations);
 
-                // モデルの中心と大きさを取得
                 const box=new THREE.Box3().setFromObject(model);
                 const center=box.getCenter(new THREE.Vector3());
                 const size=box.getSize(new THREE.Vector3());
@@ -304,7 +301,6 @@ const modelPromise=new Promise((resolve,reject)=>{
 
                 // 水面だけ材質を変更
                 model.traverse((object)=>{
-                    console.log('オブジェクト:',object.name,object.type);
                     if(object.isMesh&&object.name==='水面'){
                         object.material=waterMaterial;
                         console.log('水面シェーダーを適用');
@@ -316,40 +312,51 @@ const modelPromise=new Promise((resolve,reject)=>{
                     for(const clip of gltf.animations){
                         mixer.clipAction(clip).reset().play();
                     }
-                    console.log('GLBアニメーション再生開始');
+                    console.log('GLBアニメーション再生準備完了');
                 }else{
                     console.warn('GLBにアニメーションがありません');
                 }
 
-                modelLoaded=true;
                 resolve(model);
             }catch(error){
                 reject(error);
             }
         },
         undefined,
-        (error)=>reject(error)
+        (error)=>{
+            console.error('GLB読み込み失敗:',error);
+            reject(new Error(
+                'character.glbを読み込めません。ファイル名と配置を確認してください。'
+            ));
+        }
     );
+});
+
+// モデル読み込みエラーを早めに記録する。
+// ここでは画面表示を変えず、ボタン押下時のエラー表示に任せる。
+modelPromise.catch((error)=>{
+    console.error('モデル読み込みエラー:',error);
 });
 
 // ========================================
 // AR初期化
+// モデルの読み込みを待たずに初期化できる構成
 // ========================================
-let modelGroup=null;
-
-function createAR(model){
-    mindar=new MindARThree({
+function createAR(){
+    const ar=new MindARThree({
         container:container,
         imageTargetSrc:TARGET_URL,
         maxTrack:1
     });
 
-    const scene=mindar.scene;
-    renderer=mindar.renderer;
+    mindar=ar;
+    renderer=ar.renderer;
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.setClearColor(0x000000,0);
+
+    const scene=ar.scene;
 
     scene.add(new THREE.HemisphereLight(0xffffff,0x444455,2));
 
@@ -357,41 +364,64 @@ function createAR(model){
     light.position.set(2,4,3);
     scene.add(light);
 
-    const anchor=mindar.addAnchor(0);
+    const anchor=ar.addAnchor(0);
+
     modelGroup=new THREE.Group();
-    modelGroup.add(model);
     anchor.group.add(modelGroup);
 
     anchor.onTargetFound=()=>{
-        targetFound=true;
         message.textContent='画像を認識しました';
         hint.textContent='スマホをゆっくり動かしてください';
     };
 
     anchor.onTargetLost=()=>{
-        targetFound=false;
         message.textContent='画像を探しています…';
         hint.textContent='イラスト全体をカメラに映してください';
     };
+
+    return ar;
 }
 
 // ========================================
 // AR開始ボタン
+// iPhone Safariでは、クリック直後にstart()を呼ぶ
+// await modelPromiseより先にカメラ起動を開始する
 // ========================================
 startButton.addEventListener('click',async()=>{
-    if(arStarted)return;
+    if(arStarted||arStarting)return;
 
+    arStarting=true;
     startButton.disabled=true;
     startButton.textContent='起動中…';
-    message.textContent='準備しています…';
+    message.textContent='ARを初期化しています…';
+    hint.textContent='カメラの許可を求められたら「許可」を選んでください';
 
     try{
-        // ファイル読み込みとAR初期化を待つ
-        const model=await modelPromise;
-        createAR(model);
+        if(!window.isSecureContext){
+            throw new Error('HTTPSでページを開いてください。');
+        }
 
+        if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+            throw new Error(
+                'カメラ機能を利用できません。iPhone SafariでHTTPSのページを開いているか確認してください。'
+            );
+        }
+
+        // MindARの初期化はクリック処理内で行う
+        const ar=createAR();
+
+        // 重要：モデル読み込みをawaitする前にカメラ起動を開始する
         message.textContent='カメラを起動しています…';
-        await mindar.start();
+        const startPromise=ar.start();
+
+        // カメラ起動とモデル読み込みを並行して進める
+        const model=await modelPromise;
+
+        // モデルをARアンカーに追加
+        modelGroup.add(model);
+
+        message.textContent='カメラの起動を待っています…';
+        await startPromise;
 
         arStarted=true;
         startButton.style.display='none';
@@ -408,55 +438,99 @@ startButton.addEventListener('click',async()=>{
             waterUniforms.uTime.value+=delta;
             if(mixer)mixer.update(delta);
 
-            renderer.render(mindar.scene,mindar.camera);
+            renderer.render(ar.scene,ar.camera);
         });
 
     }catch(error){
         console.error('AR起動エラー:',error);
 
-        const details=error&&error.message?error.message:String(error);
+        const details=error&&error.message
+            ?error.message
+            :String(error);
+
         message.textContent='ARを起動できませんでした';
         hint.textContent=details;
 
+        // 起動に失敗した場合はカメラを止めて再試行できるようにする
+        if(mindar){
+            try{
+                renderer?.setAnimationLoop(null);
+                mindar.stop();
+            }catch(stopError){
+                console.warn('AR停止時のエラー:',stopError);
+            }
+        }
+
+        mindar=null;
+        renderer=null;
+        modelGroup=null;
+        arStarted=false;
         startButton.disabled=false;
         startButton.textContent='もう一度試す';
+
+    }finally{
+        arStarting=false;
     }
 });
 
 // ========================================
-// ページ終了時にカメラを停止
+// JavaScriptエラーを画面とコンソールに表示
 // ========================================
-window.addEventListener('pagehide',()=>{
-    if(mindar&&arStarted){
-        renderer.setAnimationLoop(null);
-        mindar.stop();
+window.addEventListener('error',(event)=>{
+    console.error('JavaScriptエラー:',event.message,event.error);
+
+    if(!arStarted){
+        message.textContent='JavaScriptエラーが発生しました';
+        hint.textContent=event.message||'詳細はコンソールを確認してください';
+    }
+});
+
+window.addEventListener('unhandledrejection',(event)=>{
+    const reason=event.reason;
+    console.error('非同期処理エラー:',reason);
+
+    if(!arStarted){
+        message.textContent='非同期処理エラーが発生しました';
+        hint.textContent=reason?.message||String(reason);
     }
 });
 
 // ========================================
 // ファイルの事前確認
 // ========================================
-fetch(TARGET_URL,{method:'HEAD'})
-    .then((response)=>{
-        if(!response.ok){
-            message.textContent='targets.mind が見つかりません';
-            console.error('targets.mind HTTPエラー:',response.status);
-        }
-    })
-    .catch((error)=>{
-        console.warn('targets.mindの事前確認:',error);
-    });
+async function checkFile(url,label){
+    try{
+        const response=await fetch(url,{method:'HEAD',cache:'no-store'});
 
-fetch(MODEL_URL,{method:'HEAD'})
-    .then((response)=>{
         if(!response.ok){
-            message.textContent='character.glb が見つかりません';
-            console.error('character.glb HTTPエラー:',response.status);
+            console.error(label+' HTTPエラー:',response.status,url);
+            return false;
         }
-    })
-    .catch((error)=>{
-        console.warn('character.glbの事前確認:',error);
-    });
+
+        console.log(label+'確認OK:',url);
+        return true;
+    }catch(error){
+        console.warn(label+'の事前確認に失敗:',error);
+        return false;
+    }
+}
+
+checkFile(TARGET_URL,'targets.mind');
+checkFile(MODEL_URL,'character.glb');
+
+// ========================================
+// ページ終了時にカメラを停止
+// ========================================
+window.addEventListener('pagehide',()=>{
+    if(mindar){
+        try{
+            renderer?.setAnimationLoop(null);
+            mindar.stop();
+        }catch(error){
+            console.warn('AR停止時のエラー:',error);
+        }
+    }
+});
 </script>
 </body>
 </html>
