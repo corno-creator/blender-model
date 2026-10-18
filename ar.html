@@ -110,7 +110,6 @@ const startButton=document.getElementById("start-button");
 let mindar=null;
 let model=null;
 let mixer=null;
-let waterUniforms=null;
 let arStarted=false;
 let starting=false;
 
@@ -119,20 +118,20 @@ const clock=new THREE.Clock();
 /* ============================================================
    水面用Uniform
 ============================================================ */
-waterUniforms={
+const waterUniforms={
   uTime:{value:0},
   uScale:{value:6.8}
 };
 
 /* ============================================================
-   水面 Vertex Shader
+   水面 Vertex Shader（あなたの全文）
 ============================================================ */
-const waterVertexShader=`YOUR_VERTEX_SHADER_HERE`;
+const waterVertexShader = `YOUR FULL VERTEX SHADER HERE`;
 
 /* ============================================================
-   水面 Fragment Shader
+   水面 Fragment Shader（あなたの全文）
 ============================================================ */
-const waterFragmentShader=`YOUR_FRAGMENT_SHADER_HERE`;
+const waterFragmentShader = `YOUR FULL FRAGMENT SHADER HERE`;
 
 /* ============================================================
    水面Material
