@@ -40,7 +40,6 @@ html,body{
   background:rgba(0,0,0,.72);
   border-radius:10px;
   text-align:center;
-  line-height:1.5;
 }
 #start-button{
   position:fixed;
@@ -126,12 +125,160 @@ const waterUniforms={
 /* ============================================================
    水面 Vertex Shader（あなたの全文）
 ============================================================ */
-const waterVertexShader = `YOUR FULL VERTEX SHADER HERE`;
+const waterVertexShader = `
+uniform float uTime;
+uniform float uScale;
+varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
+varying vec3 vPosition;
+
+float random(vec2 st){
+  return fract(sin(dot(st,vec2(12.9898,78.233)))*43758.5453123);
+}
+
+float noise(vec2 st){
+  vec2 i=floor(st);
+  vec2 f=fract(st);
+  float a=random(i);
+  float b=random(i+vec2(1.0,0.0));
+  float c=random(i+vec2(0.0,1.0));
+  float d=random(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)
+    +(c-a)*u.y*(1.0-u.x)
+    +(d-b)*u.x*u.y;
+}
+
+float getWave(vec2 position){
+  float wave=0.0;
+  wave+=noise(position*1.0+vec2(uTime*0.15))*0.009;
+  wave+=noise(position*2.0-vec2(uTime*0.10))*0.008;
+  wave+=noise(position*3.0+vec2(uTime*0.20))*0.002;
+  return wave;
+}
+
+void main(){
+  vec3 newPosition=position;
+  newPosition.y+=getWave(position.xz);
+
+  vec4 worldPosition=modelMatrix*vec4(newPosition,1.0);
+  vPosition=newPosition;
+  vWorldPosition=worldPosition.xyz;
+  vWorldNormal=normalize(mat3(modelMatrix)*normal);
+
+  gl_Position=projectionMatrix*viewMatrix*worldPosition;
+}
+`;
 
 /* ============================================================
    水面 Fragment Shader（あなたの全文）
 ============================================================ */
-const waterFragmentShader = `YOUR FULL FRAGMENT SHADER HERE`;
+const waterFragmentShader = `
+uniform float uTime;
+uniform float uScale;
+
+varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
+varying vec3 vPosition;
+
+float random(vec2 st){
+  return fract(sin(dot(st,vec2(12.9898,78.233)))*43758.5453123);
+}
+
+float noise(vec2 st){
+  vec2 i=floor(st);
+  vec2 f=fract(st);
+  float a=random(i);
+  float b=random(i+vec2(1.0,0.0));
+  float c=random(i+vec2(0.0,1.0));
+  float d=random(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)
+    +(c-a)*u.y*(1.0-u.x)
+    +(d-b)*u.x*u.y;
+}
+
+float fbm(vec2 st){
+  float value=0.0;
+  float amplitude=0.5;
+  float frequency=1.0;
+
+  for(int i=0;i<4;i++){
+    value+=amplitude*noise(st*frequency);
+    frequency*=2.0;
+    amplitude*=0.5;
+  }
+  return value;
+}
+
+float voronoi(vec2 x){
+  vec2 n=floor(x);
+  vec2 f=fract(x);
+  float minDist=1.0;
+
+  for(int j=-1;j<=1;j++){
+    for(int i=-1;i<=1;i++){
+      vec2 neighbor=vec2(float(i),float(j));
+      vec2 point=neighbor+vec2(
+        random(n+neighbor),
+        random(n+neighbor+vec2(31.7,17.3))
+      );
+      vec2 difference=point-f;
+      float distanceValue=dot(difference,difference);
+      minDist=min(minDist,distanceValue);
+    }
+  }
+  return sqrt(minDist);
+}
+
+vec3 rainbowColor(float value){
+  vec3 color1=vec3(0.20,0.07,0.09);
+  vec3 color2=vec3(0.22,0.14,0.07);
+  vec3 color3=vec3(0.23,0.21,0.08);
+  vec3 color4=vec3(0.08,0.23,0.13);
+  vec3 color5=vec3(0.07,0.20,0.23);
+  vec3 color6=vec3(0.07,0.11,0.23);
+  vec3 color7=vec3(0.17,0.07,0.23);
+
+  if(value<0.16)
+    return mix(color1,color2,value/0.16);
+  else if(value<0.32)
+    return mix(color2,color3,(value-0.16)/0.16);
+  else if(value<0.48)
+    return mix(color3,color4,(value-0.32)/0.16);
+  else if(value<0.64)
+    return mix(color4,color5,(value-0.48)/0.16);
+  else if(value<0.80)
+    return mix(color5,color6,(value-0.64)/0.16);
+  else
+    return mix(color6,color7,(value-0.80)/0.20);
+}
+
+void main(){
+  vec2 position=vPosition.xz*uScale;
+
+  position.x+=uTime*0.08;
+  position.y+=uTime*0.04;
+
+  float noiseValue=fbm(position);
+  float voronoiValue=voronoi(position*0.73);
+  float pattern=noiseValue*0.65+voronoiValue*0.35;
+  vec3 color=rainbowColor(pattern);
+
+  vec3 viewDirection=normalize(cameraPosition-vWorldPosition);
+  vec3 normalDirection=normalize(vWorldNormal);
+
+  float fresnel=1.0-max(dot(normalDirection,viewDirection),0.0);
+  fresnel=smoothstep(0.15,0.85,fresnel);
+
+  color+=vec3(0.10,0.12,0.14)*fresnel;
+  color=mix(color,vec3(0.12,0.13,0.14),0.25);
+  color+=vec3(0.12)*smoothstep(0.65,1.0,pattern);
+
+  float alpha=mix(0.28,0.72,fresnel);
+  gl_FragColor=vec4(color,alpha);
+}
+`;
 
 /* ============================================================
    水面Material
