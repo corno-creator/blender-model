@@ -89,6 +89,18 @@ loader.load(
 
   function(gltf){
 
+    console.log("成功");
+    console.log(gltf);
+
+    scene.add(gltf.scene);
+
+    document.getElementById("msg")
+      .textContent="GLB成功";
+
+  },
+
+  function(gltf){
+
     scene.add(
       gltf.scene
     );
@@ -116,6 +128,18 @@ new GLTFLoader();
 
 loader.load(
   "./character.glb",
+
+  function(gltf){
+
+    console.log("成功");
+    console.log(gltf);
+
+    scene.add(gltf.scene);
+
+    document.getElementById("msg")
+      .textContent="GLB成功";
+
+  },
 
   function(gltf){
 
