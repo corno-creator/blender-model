@@ -40,11 +40,29 @@ html,body{
 
 <script type="module">
 import * as THREE from "three";
-import {GLTFLoader}
-from "three/addons/loaders/GLTFLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-document.getElementById("msg").textContent =
-"GLTFLoader OK";
+document.getElementById("msg").textContent = "GLTFLoader OK";
+
+const loader = new GLTFLoader();
+
+loader.load(
+  "./character.glb",
+
+  function(gltf){
+    document.getElementById("msg").textContent =
+      "GLB成功";
+  },
+
+  undefined,
+
+  function(error){
+    console.error(error);
+
+    document.getElementById("msg").textContent =
+      "GLB失敗";
+  }
+);
 </script>
 
 </body>
