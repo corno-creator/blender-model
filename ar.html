@@ -6,6 +6,7 @@
 <title>MindAR Test</title>
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
 <style>
@@ -27,10 +28,12 @@ html,body{
   device-orientation-permission-ui="enabled: false">
 
   <a-assets>
+
     <a-asset-item
       id="avatar"
       src="./character.glb">
     </a-asset-item>
+
   </a-assets>
 
   <a-camera
@@ -43,8 +46,9 @@ html,body{
     <a-gltf-model
       src="#avatar"
       position="0 0 0"
-      scale="0.2 0.2 0.2"
-      rotation="0 0 0">
+      scale="2 2 2"
+      rotation="0 0 0"
+      animation-mixer>
     </a-gltf-model>
 
   </a-entity>
