@@ -54,6 +54,52 @@ html,body{
   </a-entity>
 
 </a-scene>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
 
+  const model = document.querySelector("a-gltf-model");
+
+  model.addEventListener("model-loaded", (e) => {
+
+    e.detail.model.traverse((obj) => {
+
+      if (!obj.isMesh) return;
+
+      // 描画順を固定
+      if (obj.name === "CardBack") {
+        obj.renderOrder = 1;
+      }
+
+      if (obj.name === "CardText") {
+        obj.renderOrder = 2;
+      }
+
+      if (obj.name === "CardCharacter") {
+        obj.renderOrder = 3;
+      }
+
+      if (obj.name === "CardStar") {
+        obj.renderOrder = 4;
+      }
+
+      if (obj.material) {
+        obj.material.transparent = true;
+
+        // 透明物の描画順崩れ対策
+        obj.material.depthWrite = false;
+
+        obj.material.needsUpdate = true;
+      }
+
+      console.log(
+        obj.name,
+        obj.renderOrder
+      );
+    });
+
+  });
+
+});
+</script>
 </body>
 </html>
