@@ -3,17 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MindAR Test</title>
+<title>MindAR Card Test</title>
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
 <style>
-html,body{
+html,
+body{
   margin:0;
   width:100%;
   height:100%;
+  overflow:hidden;
 }
 </style>
 </head>
@@ -28,12 +30,10 @@ html,body{
   device-orientation-permission-ui="enabled: false">
 
   <a-assets>
-
     <a-asset-item
       id="avatar"
       src="./character.glb">
     </a-asset-item>
-
   </a-assets>
 
   <a-camera
@@ -43,63 +43,65 @@ html,body{
 
   <a-entity mindar-image-target="targetIndex: 0">
 
-<a-gltf-model
-  src="#avatar"
-  position="0 2// 0"
-  scale="1 1 1"
-  rotation="-90 0 0"
-  animation-mixer>
-</a-gltf-model>
+    <a-gltf-model
+      id="avatarModel"
+      src="#avatar"
+      position="0 2 0"
+      scale="1 1 1"
+      rotation="-90 0 0"
+      animation-mixer>
+    </a-gltf-model>
 
   </a-entity>
 
 </a-scene>
+
 <script>
-document.addEventListener("DOMContentLoaded", () => {
 
-  const model = document.querySelector("a-gltf-model");
+document
+.querySelector("#avatarModel")
+.addEventListener("model-loaded", (e)=>{
 
-  model.addEventListener("model-loaded", (e) => {
+  e.detail.model.traverse((obj)=>{
 
-    e.detail.model.traverse((obj) => {
+    if(!obj.isMesh) return;
 
-      if (!obj.isMesh) return;
+    if(obj.name === "CardBack"){
+      obj.renderOrder = 1;
+    }
 
-      // 描画順を固定
-      if (obj.name === "CardBack") {
-        obj.renderOrder = 1;
-      }
+    if(obj.name === "CardText"){
+      obj.renderOrder = 2;
+    }
 
-      if (obj.name === "CardText") {
-        obj.renderOrder = 2;
-      }
+    if(obj.name === "CardCharacter"){
+      obj.renderOrder = 3;
+    }
 
-      if (obj.name === "CardCharacter") {
-        obj.renderOrder = 3;
-      }
+    if(obj.name === "CardStar"){
+      obj.renderOrder = 4;
+    }
 
-      if (obj.name === "CardStar") {
-        obj.renderOrder = 4;
-      }
+    if(obj.material){
 
-      if (obj.material) {
-        obj.material.transparent = true;
+      obj.material.transparent = true;
 
-        // 透明物の描画順崩れ対策
-        obj.material.depthWrite = false;
+      obj.material.depthWrite = false;
 
-        obj.material.needsUpdate = true;
-      }
+      obj.material.needsUpdate = true;
 
-      console.log(
-        obj.name,
-        obj.renderOrder
-      );
-    });
+    }
+
+    console.log(
+      obj.name,
+      obj.renderOrder
+    );
 
   });
 
 });
+
 </script>
+
 </body>
 </html>
