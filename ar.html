@@ -10,13 +10,13 @@
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
 <style>
-html,
-body{
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-}
+  html,
+  body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
 </style>
 </head>
 
@@ -30,19 +30,16 @@ body{
   device-orientation-permission-ui="enabled: false">
 
   <a-assets>
-    <a-asset-item
-      id="avatar"
-      src="./character.glb">
-    </a-asset-item>
+    <a-asset-item id="avatar" src="./character.glb"></a-asset-item>
   </a-assets>
 
-  <a-camera
-    position="0 0 0"
-    look-controls="enabled:false">
-  </a-camera>
+  <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
 
   <a-entity mindar-image-target="targetIndex: 0">
-
+    <!--
+      マテリアルはglTF(character.glb)の設定をそのまま使う。
+      向きを直したいときは rotation の値だけ変更する。
+    -->
     <a-gltf-model
       id="avatarModel"
       src="#avatar"
@@ -51,66 +48,9 @@ body{
       rotation="0 0 0"
       animation-mixer>
     </a-gltf-model>
-
   </a-entity>
 
 </a-scene>
-<script>
-  // 例: ar.html?rx=90&ry=0&rz=0
-  const q = new URLSearchParams(location.search);
-  const rx = q.get("rx") ?? 0;
-  const ry = q.get("ry") ?? 0;
-  const rz = q.get("rz") ?? 0;
-  document.querySelector("#avatarModel")
-    .setAttribute("rotation", ${rx} ${ry} ${rz});
-</script>
-<script>
-document
-  .querySelector("#avatarModel")
-  .addEventListener("model-loaded", (e) => {
-
-    const cardLayers = {
-      CardBack: 1,
-      CardText: 2,
-      CardCharacter: 3,
-      CardStar: 4
-    };
-
-    const names = [];
-
-    e.detail.model.traverse((obj) => {
-      if (!obj.isMesh) return;
-      names.push(obj.name);
-
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-
-      mats.forEach((m) => {
-        if (!m) return;
-        if (cardLayers[obj.name]) {
-          // カードの重ね絵だけ、半透明扱い＋描画順を指定
-          m.transparent = true;
-          m.depthWrite = false;
-          obj.renderOrder = cardLayers[obj.name];
-        } else {
-          // それ以外（大地など）は普通の不透明物体として扱う
-          m.transparent = false;
-          m.depthWrite = true;
-          m.depthTest = true;
-        }
-        m.needsUpdate = true;
-      });
-    });
-
-    // スマホはコンソールが見られないので、メッシュ名を画面に表示する
-    const box = document.createElement("div");
-    box.style.cssText =
-      "position:fixed;left:4px;bottom:4px;z-index:9999;" +
-      "background:rgba(0,0,0,.6);color:#fff;font:11px sans-serif;" +
-      "padding:4px 6px;pointer-events:none;max-width:60%;";
-    box.textContent = "meshes: " + names.join(", ");
-    document.body.appendChild(box);
-  });
-</script>
 
 </body>
 </html>
