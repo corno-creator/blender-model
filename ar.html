@@ -65,50 +65,51 @@ body{
     .setAttribute("rotation", ${rx} ${ry} ${rz});
 </script>
 <script>
-
 document
-.querySelector("#avatarModel")
-.addEventListener("model-loaded", (e)=>{
+  .querySelector("#avatarModel")
+  .addEventListener("model-loaded", (e) => {
 
-  e.detail.model.traverse((obj)=>{
+    const cardLayers = {
+      CardBack: 1,
+      CardText: 2,
+      CardCharacter: 3,
+      CardStar: 4
+    };
 
-    if(!obj.isMesh) return;
+    const names = [];
 
-    if(obj.name === "CardBack"){
-      obj.renderOrder = 1;
-    }
+    e.detail.model.traverse((obj) => {
+      if (!obj.isMesh) return;
+      names.push(obj.name);
 
-    if(obj.name === "CardText"){
-      obj.renderOrder = 2;
-    }
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
 
-    if(obj.name === "CardCharacter"){
-      obj.renderOrder = 3;
-    }
+      mats.forEach((m) => {
+        if (!m) return;
+        if (cardLayers[obj.name]) {
+          // カードの重ね絵だけ、半透明扱い＋描画順を指定
+          m.transparent = true;
+          m.depthWrite = false;
+          obj.renderOrder = cardLayers[obj.name];
+        } else {
+          // それ以外（大地など）は普通の不透明物体として扱う
+          m.transparent = false;
+          m.depthWrite = true;
+          m.depthTest = true;
+        }
+        m.needsUpdate = true;
+      });
+    });
 
-    if(obj.name === "CardStar"){
-      obj.renderOrder = 4;
-    }
-
-    if(obj.material){
-
-      obj.material.transparent = true;
-
-      obj.material.depthWrite = false;
-
-      obj.material.needsUpdate = true;
-
-    }
-
-    console.log(
-      obj.name,
-      obj.renderOrder
-    );
-
+    // スマホはコンソールが見られないので、メッシュ名を画面に表示する
+    const box = document.createElement("div");
+    box.style.cssText =
+      "position:fixed;left:4px;bottom:4px;z-index:9999;" +
+      "background:rgba(0,0,0,.6);color:#fff;font:11px sans-serif;" +
+      "padding:4px 6px;pointer-events:none;max-width:60%;";
+    box.textContent = "meshes: " + names.join(", ");
+    document.body.appendChild(box);
   });
-
-});
-
 </script>
 
 </body>
