@@ -31,9 +31,37 @@
     white-space: pre-wrap;
     word-break: break-all;
   }
+  #meshBtn {
+    position: fixed;
+    right: 8px;
+    bottom: 8px;
+    z-index: 99998;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  #meshList {
+    position: fixed;
+    right: 8px;
+    bottom: 44px;
+    max-width: 80%;
+    max-height: 50%;
+    overflow: auto;
+    z-index: 99998;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 6px;
+    display: none;
+    white-space: pre;
+  }
 </style>
+
 <script>
-/* エラーを画面に表示(スマホでコンソールが見られないため) /
+/* エラーを画面に表示(スマホでコンソールが見られないため) */
 window.addEventListener('error', function (e) {
   var box = document.getElementById('err');
   if (!box) return;
@@ -41,16 +69,32 @@ window.addEventListener('error', function (e) {
   box.textContent += (e.message || 'error') + '\n';
 });
 
-/
-  water-fix:
-  独自シェーダーは使わず、glTFに入っているマテリアルの
-  色と描画順だけを調整する。
-  
-「水面」: 青・半透明・depthWriteなし・先に描画
-他の半透明メッシュ: 水面より後に描画(カードが前に出る)
+/*
+  ORDER: メッシュ名 → 描画順。数字が大きいほど手前に描かれる。
+  メッシュ名は画面右下の「mesh」ボタンで確認できる。
+  例(名前は実際のものに書き換える):
+    '水面': 1,
+    'カード背景': 10,
+    'キャラ': 11,
+    '星': 12,
+    '枠': 13
+*/
+var ORDER = {
+  '水面': 1
+};
+
+/* ORDERに書いたカード用メッシュは、層の重なりを描画順で決める(深度判定を切る) */
+var IGNORE_DEPTH_FOR_ORDERED = true;
+
+/* ORDERに書いていない半透明メッシュの描画順 */
+var DEFAULT_TRANSPARENT_ORDER = 2;
+
+/*
+  draw-order:
+  マテリアルの見た目は触らず、描画順だけを調整する。
 */
 if (window.AFRAME) {
-  AFRAME.registerComponent('water-fix', {
+  AFRAME.registerComponent('draw-order', {
     init: function () {
       var self = this;
       this.el.addEventListener('model-loaded', function () {
@@ -58,41 +102,62 @@ if (window.AFRAME) {
           var root = self.el.getObject3D('mesh');
           if (!root) return;
 
+          var lines = [];
+
           root.traverse(function (obj) {
             if (!obj.isMesh || !obj.material) return;
 
-            if (obj.name === '水面') {
-              var m = obj.material;
-              if (m.color) m.color.set(0x0080ff);
-              if (m.emissive) m.emissive.set(0x000000);
-              m.map = null;
-              m.transparent = true;
-              m.opacity = 0.8;
-              m.depthWrite = false;
-              m.side = AFRAME.THREE.DoubleSide;
-              m.needsUpdate = true;
-              obj.renderOrder = 1;
-            } else if (obj.material.transparent) {
-              obj.renderOrder = 2;
+            var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            var name = obj.name;
+
+            if (Object.prototype.hasOwnProperty.call(ORDER, name)) {
+              obj.renderOrder = ORDER[name];
+              mats.forEach(function (m) {
+                m.transparent = true;
+                m.depthWrite = false;
+                if (IGNORE_DEPTH_FOR_ORDERED && name !== '水面') {
+                  m.depthTest = false;
+                }
+                m.needsUpdate = true;
+              });
+            } else if (mats.some(function (m) { return m.transparent; })) {
+              obj.renderOrder = DEFAULT_TRANSPARENT_ORDER;
             }
+
+            lines.push(name + '  : ' + obj.renderOrder);
           });
+
+          var list = document.getElementById('meshList');
+          if (list) list.textContent = lines.join('\n');
         } catch (err) {
           var box = document.getElementById('err');
           if (box) {
             box.style.display = 'block';
-            box.textContent += 'water-fix: ' + err.message + '\n';
+            box.textContent += 'draw-order: ' + err.message + '\n';
           }
         }
       });
     }
   });
 }
+
+/* meshボタンで一覧の表示/非表示 */
+window.addEventListener('DOMContentLoaded', function () {
+  var btn = document.getElementById('meshBtn');
+  var list = document.getElementById('meshList');
+  if (!btn || !list) return;
+  btn.addEventListener('click', function () {
+    list.style.display = list.style.display === 'block' ? 'none' : 'block';
+  });
+});
 </script>
 </head>
 
 <body>
 
 <div id="err"></div>
+<div id="meshList">モデル読み込み中...</div>
+<div id="meshBtn">mesh</div>
 
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind"
@@ -109,7 +174,8 @@ if (window.AFRAME) {
 
   <a-entity mindar-image-target="targetIndex: 0">
     <!--
-      水面の色と描画順だけ water-fix で調整する。
+      マテリアルはglTF(character.glb)の設定をそのまま使う。
+      描画順だけ draw-order で調整する。
       向きを直したいときは rotation の値だけ変更する。
     -->
     <a-gltf-model
@@ -119,7 +185,7 @@ if (window.AFRAME) {
       scale="1 1 1"
       rotation="0 0 0"
       animation-mixer
-      water-fix>
+      draw-order>
     </a-gltf-model>
   </a-entity>
 
