@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MindAR Card Test</title>
+
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe
-extras.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image
-aframe.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
 <style>
   html,
-body {
+  body {
     margin: 0;
     width: 100%;
     height: 100%;
@@ -27,25 +27,27 @@ body {
     color: #fff;
     font-size: 12px;
     padding: 6px 8px;
-display: none;
+    display: none;
     white-space: pre-wrap;
-word-break: break-all;
+    word-break: break-all;
   }
 </style>
 <script>
-/* エラーを画面に表示(スマホでコンソールが見られないため) */
+/* エラーを画面に表示(スマホでコンソールが見られないため) /
 window.addEventListener('error', function (e) {
-var box = document.getElementById('err');
-if (!box) return;
-box.style.display = 'block';
+  var box = document.getElementById('err');
+  if (!box) return;
+  box.style.display = 'block';
   box.textContent += (e.message || 'error') + '\n';
 });
-/*
+
+/
   water-fix:
-  独自シェーダーは使わず､glTFに入っているマテリアルの
-  色と描画順だけを調整する｡
-  - ｢水面｣: 青・半透明・depthWriteなし・先に描画
-  - 他の半透明メッシュ: 水面より後に描画(カードが前に出る)
+  独自シェーダーは使わず、glTFに入っているマテリアルの
+  色と描画順だけを調整する。
+  
+「水面」: 青・半透明・depthWriteなし・先に描画
+他の半透明メッシュ: 水面より後に描画(カードが前に出る)
 */
 if (window.AFRAME) {
   AFRAME.registerComponent('water-fix', {
@@ -55,8 +57,10 @@ if (window.AFRAME) {
         try {
           var root = self.el.getObject3D('mesh');
           if (!root) return;
+
           root.traverse(function (obj) {
             if (!obj.isMesh || !obj.material) return;
+
             if (obj.name === '水面') {
               var m = obj.material;
               if (m.color) m.color.set(0x0080ff);
@@ -85,25 +89,31 @@ if (window.AFRAME) {
 }
 </script>
 </head>
+
 <body>
+
 <div id="err"></div>
+
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind"
   color-space="sRGB"
   embedded
-vr-mode-ui="enabled: false"
-device-orientation-permission-ui="enabled: false">
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false">
+
   <a-assets>
     <a-asset-item id="avatar" src="./character.glb"></a-asset-item>
   </a-assets>
+
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
-<a-entity mindar-image-target="targetIndex: 0">
-<!-
-水面の色と描画順だけ water-fix で調整する｡
-向きを直したいときは rotation の値だけ変更する｡
+
+  <a-entity mindar-image-target="targetIndex: 0">
+    <!--
+      水面の色と描画順だけ water-fix で調整する。
+      向きを直したいときは rotation の値だけ変更する。
     -->
     <a-gltf-model
-id="avatarModel"
+      id="avatarModel"
       src="#avatar"
       position="0 0 0.1"
       scale="1 1 1"
@@ -111,7 +121,9 @@ id="avatarModel"
       animation-mixer
       water-fix>
     </a-gltf-model>
-</a-entity>
+  </a-entity>
+
 </a-scene>
+
 </body>
 </html>
