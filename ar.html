@@ -4,53 +4,105 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MindAR Card Test</title>
-
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe
+extras.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image
+aframe.prod.js"></script>
 <style>
   html,
-  body {
+body {
     margin: 0;
     width: 100%;
     height: 100%;
     overflow: hidden;
   }
 </style>
+<script>
+/*
+  water-shader:
+｢水面｣メッシュだけ青い波打つシェーダーに差し替える｡
+  - 水面は depthWrite を切り､ 描画順を先にする
+  - 他の半透明メッシュは水面より後に描画する(カードが前に出る)
+それ以外のマテリアルは character.glb の設定をそのまま使う｡
+*/
+if (window.AFRAME) {
+AFRAME.registerComponent('water-shader', {
+    schema: {
+      meshName: { default: '水面' }
+    },
+    init: function () {
+const THREE = AFRAME.THREE;
+      const self = this;
+      this.uniforms = { uTime: { value: 0 } };
+this.waterMaterial = new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: `
+          uniform float uTime;
+          void main() {
+            vec3 pos = position;
+            pos.y += sin(pos.x * 4.0 + uTime) * 0.02;
+            pos.y += cos(pos.z * 4.0 + uTime) * 0.02;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+          }
+        `,
+        fragmentShader: `
+          void main() {
+            gl_FragColor = vec4(0.0, 0.5, 1.0, 0.8);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      this.el.addEventListener('model-loaded', function () {
+        const root = self.el.getObject3D('mesh');
+        if (!root) return;
+        root.traverse(function (obj) {
+          if (!obj.isMesh) return;
+          if (obj.name === self.data.meshName) {
+            obj.material = self.waterMaterial;
+            obj.renderOrder = 1;
+            console.log('水面Shader適用:', obj.name);
+          } else if (obj.material && obj.material.transparent) {
+            obj.renderOrder = 2;
+            console.log('半透明メッシュを水面より後に描画:', obj.name);
+          }
+        });
+      });
+    },
+    tick: function (time) {
+      this.uniforms.uTime.value = time / 1000;
+    }
+  });
+} else {
+  console.warn('A-Frameが読み込めていません｡ネットワークまたはCDNを確認して
+ください｡');
+}
+</script>
 </head>
-
 <body>
-
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind"
   color-space="sRGB"
   embedded
-  vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: false">
-
+vr-mode-ui="enabled: false"
+device-orientation-permission-ui="enabled: false">
   <a-assets>
     <a-asset-item id="avatar" src="./character.glb"></a-asset-item>
   </a-assets>
-
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
-
-  <a-entity mindar-image-target="targetIndex: 0">
-    <!--
-      マテリアルはglTF(character.glb)の設定をそのまま使う。
-      向きを直したいときは rotation の値だけ変更する。
-    -->
+<a-entity mindar-image-target="targetIndex: 0">
     <a-gltf-model
-      id="avatarModel"
+id="avatarModel"
       src="#avatar"
       position="0 0 0.1"
       scale="1 1 1"
       rotation="0 0 0"
-      animation-mixer>
+      animation-mixer
+      water-shader>
     </a-gltf-model>
-  </a-entity>
-
+</a-entity>
 </a-scene>
-
 </body>
 </html>
