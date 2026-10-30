@@ -17,84 +17,108 @@ body {
     height: 100%;
     overflow: hidden;
   }
+  #err {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: rgba(200, 0, 0, 0.9);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 8px;
+display: none;
+    white-space: pre-wrap;
+word-break: break-all;
+  }
 </style>
 <script>
+/* エラーを画面に表示(スマホでコンソールが見られないため) */
+window.addEventListener('error', function (e) {
+var box = document.getElementById('err');
+if (!box) return;
+box.style.display = 'block';
+  box.textContent += (e.message || 'error') + ' ' + (e.filename || '') + ':' + 
+(e.lineno || '') + '\n';
+});
 /*
   water-shader:
-｢水面｣メッシュだけ青い波打つシェーダーに差し替える｡
-  - 水面は depthWrite を切り､ 描画順を先にする
-  - 他の半透明メッシュは水面より後に描画する(カードが前に出る)
-それ以外のマテリアルは character.glb の設定をそのまま使う｡
+  ｢水面｣メッシュだけ青い波打つシェーダーに差し替える｡
+  - 水面は depthWrite を切り､描画順を先にする
+  - 他の半透明メッシュは水面より後に描画する
+  失敗しても元のモデルはそのまま表示する｡
 */
 if (window.AFRAME) {
-AFRAME.registerComponent('water-shader', {
+  AFRAME.registerComponent('water-shader', {
     schema: {
       meshName: { default: '水面' }
     },
     init: function () {
-const THREE = AFRAME.THREE;
-      const self = this;
+      var THREE = AFRAME.THREE;
+      var self = this;
       this.uniforms = { uTime: { value: 0 } };
-this.waterMaterial = new THREE.ShaderMaterial({
-        uniforms: this.uniforms,
-        vertexShader: `
-          uniform float uTime;
-          void main() {
-            vec3 pos = position;
-            pos.y += sin(pos.x * 4.0 + uTime) * 0.02;
-            pos.y += cos(pos.z * 4.0 + uTime) * 0.02;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-          }
-        `,
-        fragmentShader: `
-          void main() {
-            gl_FragColor = vec4(0.0, 0.5, 1.0, 0.8);
-          }
-        `,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
       this.el.addEventListener('model-loaded', function () {
-        const root = self.el.getObject3D('mesh');
-        if (!root) return;
-        root.traverse(function (obj) {
-          if (!obj.isMesh) return;
-          if (obj.name === self.data.meshName) {
-            obj.material = self.waterMaterial;
-            obj.renderOrder = 1;
-            console.log('水面Shader適用:', obj.name);
-          } else if (obj.material && obj.material.transparent) {
-            obj.renderOrder = 2;
-            console.log('半透明メッシュを水面より後に描画:', obj.name);
+        try {
+          var root = self.el.getObject3D('mesh');
+          if (!root) return;
+          var waterMaterial = new THREE.ShaderMaterial({
+            uniforms: self.uniforms,
+            vertexShader:
+              'uniform float uTime;' +
+              'void main() {' +
+              '  vec3 pos = position;' +
+              '  pos.y += sin(pos.x * 4.0 + uTime) * 0.02;' +
+              '  pos.y += cos(pos.z * 4.0 + uTime) * 0.02;' +
+              '  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);' +
+              '}',
+            fragmentShader:
+              'void main() {' +
+              '  gl_FragColor = vec4(0.0, 0.5, 1.0, 0.8);' +
+              '}',
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide
+          });
+          root.traverse(function (obj) {
+            if (!obj.isMesh) return;
+            if (obj.name === self.data.meshName) {
+              obj.material = waterMaterial;
+              obj.renderOrder = 1;
+            } else if (obj.material && obj.material.transparent) {
+              obj.renderOrder = 2;
+            }
+          });
+        } catch (err) {
+          var box = document.getElementById('err');
+          if (box) {
+            box.style.display = 'block';
+            box.textContent += 'water-shader: ' + err.message + '\n';
           }
-        });
+        }
       });
     },
     tick: function (time) {
       this.uniforms.uTime.value = time / 1000;
     }
   });
-} else {
-  console.warn('A-Frameが読み込めていません｡ネットワークまたはCDNを確認して
-ください｡');
 }
 </script>
 </head>
 <body>
+<div id="err"></div>
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind"
   color-space="sRGB"
   embedded
-vr-mode-ui="enabled: false"
-device-orientation-permission-ui="enabled: false">
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false">
   <a-assets>
     <a-asset-item id="avatar" src="./character.glb"></a-asset-item>
   </a-assets>
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
-<a-entity mindar-image-target="targetIndex: 0">
+  <a-entity mindar-image-target="targetIndex: 0">
     <a-gltf-model
-id="avatarModel"
+      id="avatarModel"
       src="#avatar"
       position="0 0 0.1"
       scale="1 1 1"
