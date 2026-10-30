@@ -55,7 +55,15 @@ body{
   </a-entity>
 
 </a-scene>
-
+<script>
+  // 例: ar.html?rx=90&ry=0&rz=0
+  const q = new URLSearchParams(location.search);
+  const rx = q.get("rx") ?? 0;
+  const ry = q.get("ry") ?? 0;
+  const rz = q.get("rz") ?? 0;
+  document.querySelector("#avatarModel")
+    .setAttribute("rotation", ${rx} ${ry} ${rz});
+</script>
 <script>
 
 document
