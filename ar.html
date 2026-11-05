@@ -90,7 +90,7 @@ var ORDER = {
 };
 
 /* ORDERに書いたカード用メッシュは、層の重なりを描画順で決める(深度判定を切る) */
-var IGNORE_DEPTH_FOR_ORDERED = true;
+var IGNORE_DEPTH_FOR_ORDERED = false;
 
 /* ORDERに書いていない半透明メッシュの描画順 */
 var DEFAULT_TRANSPARENT_ORDER = 2;
@@ -122,7 +122,7 @@ if (window.AFRAME) {
               obj.renderOrder = ORDER[name];
               mats.forEach(function (m) {
                 m.transparent = true;
-                m.depthWrite = false;
+                //m.depthWrite = false;
                 if (IGNORE_DEPTH_FOR_ORDERED && name !== '水面') {
                   m.depthTest = false;
                 }
