@@ -121,8 +121,9 @@ if (window.AFRAME) {
             if (Object.prototype.hasOwnProperty.call(ORDER, name)) {
               obj.renderOrder = ORDER[name];
               mats.forEach(function (m) {
-                m.transparent = true;
+                //m.transparent = true;
                 //m.depthWrite = false;
+                m.needsUpdate = true;
                 if (IGNORE_DEPTH_FOR_ORDERED && name !== '水面') {
                   m.depthTest = false;
                 }
