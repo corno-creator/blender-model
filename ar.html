@@ -46,17 +46,25 @@
     position: fixed;
     right: 8px;
     bottom: 44px;
-    max-width: 80%;
-    max-height: 50%;
+    left: 8px;
+    max-height: 55%;
     overflow: auto;
     z-index: 99998;
     background: rgba(0, 0, 0, 0.8);
     color: #fff;
-    font-size: 12px;
-    padding: 8px;
+    font-size: 11px;
+    padding: 6px;
     border-radius: 6px;
     display: none;
-    white-space: pre;
+  }
+  #meshList .row {
+    padding: 4px 2px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    word-break: break-all;
+  }
+  #meshList .off {
+    opacity: 0.4;
+    text-decoration: line-through;
   }
 </style>
 
@@ -71,13 +79,7 @@ window.addEventListener('error', function (e) {
 
 /*
   ORDER: メッシュ名 → 描画順。数字が大きいほど手前に描かれる。
-  メッシュ名は画面右下の「mesh」ボタンで確認できる。
-  例(名前は実際のものに書き換える):
-    '水面': 1,
-    'カード背景': 10,
-    'キャラ': 11,
-    '星': 12,
-    '枠': 13
+  メッシュ名・マテリアル名は画面右下の「mesh」ボタンで確認できる。
 */
 var ORDER = {
   '水面': 1
@@ -92,6 +94,7 @@ var DEFAULT_TRANSPARENT_ORDER = 2;
 /*
   draw-order:
   マテリアルの見た目は触らず、描画順だけを調整する。
+  あわせて、診断用にメッシュ一覧を作る(行タップで表示/非表示)。
 */
 if (window.AFRAME) {
   AFRAME.registerComponent('draw-order', {
@@ -102,7 +105,8 @@ if (window.AFRAME) {
           var root = self.el.getObject3D('mesh');
           if (!root) return;
 
-          var lines = [];
+          var list = document.getElementById('meshList');
+          if (list) list.innerHTML = '';
 
           root.traverse(function (obj) {
             if (!obj.isMesh || !obj.material) return;
@@ -124,11 +128,27 @@ if (window.AFRAME) {
               obj.renderOrder = DEFAULT_TRANSPARENT_ORDER;
             }
 
-            lines.push(name + '  : ' + obj.renderOrder);
-          });
+            if (list) {
+              var m0 = mats[0];
+              var info =
+                name +
+                ' | 順:' + obj.renderOrder +
+                ' | 材:' + (m0.name || '-') +
+                ' | 透明:' + (m0.transparent ? 'Y' : 'N') +
+                ' | 不透明度:' + (m0.opacity !== undefined ? m0.opacity.toFixed(2) : '-') +
+                ' | αテスト:' + (m0.alphaTest || 0) +
+                ' | 画像:' + (m0.map ? 'あり' : 'なし');
 
-          var list = document.getElementById('meshList');
-          if (list) list.textContent = lines.join('\n');
+              var row = document.createElement('div');
+              row.className = 'row';
+              row.textContent = info;
+              row.addEventListener('click', function () {
+                obj.visible = !obj.visible;
+                row.className = obj.visible ? 'row' : 'row off';
+              });
+              list.appendChild(row);
+            }
+          });
         } catch (err) {
           var box = document.getElementById('err');
           if (box) {
@@ -181,8 +201,8 @@ window.addEventListener('DOMContentLoaded', function () {
     <a-gltf-model
       id="avatarModel"
       src="#avatar"
-      position="0 0 0.2"
-      scale="2 2 2"
+      position="0 0 0.1"
+      scale="1 1 1"
       rotation="0 0 0"
       animation-mixer
       draw-order>
