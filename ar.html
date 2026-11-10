@@ -70,23 +70,26 @@
 
 <script>
 /* エラーを画面に表示(スマホでコンソールが見られないため) */
-window.addEventListener('error', function (e) {
+function showErr(text) {
   var box = document.getElementById('err');
   if (!box) return;
   box.style.display = 'block';
-  box.textContent += (e.message || 'error') + '\n';
+  box.textContent += text + '\n';
+}
+window.addEventListener('error', function (e) {
+  showErr(e.message || 'error');
 });
 
 /*
-  ORDER: メッシュ名 → 描画順。数字が大きいほど手前に描かれる。
-  メッシュ名・マテリアル名は画面右下の「mesh」ボタンで確認できる。
+  ORDER: オブジェクト名 → 描画順。数字が大きいほど手前に描かれる。
+  名前は「前方一致」で探す(CardStar_1 や CardStar001 も CardStar として扱う)。
+  オブジェクト名は画面右下の「mesh」ボタンで確認できる。
 */
 var ORDER = {
-  '平面005': 40, // CardStar
-　'平面005_1': 30, // CardCharacter
-  '平面005_2': 20, // CardText 
-  '平面005_3': 10,   // CardBack
-  '平面005_4': 10,   // 側面
+  'CardBack': 10,
+  'CardText': 20,
+  'CardCharacter': 30,
+  'CardStar': 40,
   '水面': 1
 };
 
@@ -95,6 +98,23 @@ var IGNORE_DEPTH_FOR_ORDERED = false;
 
 /* ORDERに書いていない半透明メッシュの描画順 */
 var DEFAULT_TRANSPARENT_ORDER = 2;
+
+/* 名前から描画順を探す。自分 → 親 の順にたどる。見つからなければ null */
+function findOrder(obj, root) {
+  var keys = Object.keys(ORDER);
+  var o = obj;
+  while (o && o !== root.parent) {
+    var n = o.name || '';
+    if (Object.prototype.hasOwnProperty.call(ORDER, n)) return ORDER[n];
+    var best = null;
+    keys.forEach(function (k) {
+      if (n.indexOf(k) === 0 && (best === null || k.length > best.length)) best = k;
+    });
+    if (best !== null) return ORDER[best];
+    o = o.parent;
+  }
+  return null;
+}
 
 /*
   draw-order:
@@ -113,19 +133,20 @@ if (window.AFRAME) {
           var list = document.getElementById('meshList');
           if (list) list.innerHTML = '';
 
+          var matched = 0;
+
           root.traverse(function (obj) {
             if (!obj.isMesh || !obj.material) return;
 
             var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
             var name = obj.name;
+            var order = findOrder(obj, root);
 
-            if (Object.prototype.hasOwnProperty.call(ORDER, name)) {
-              obj.renderOrder = ORDER[name];
+            if (order !== null) {
+              matched++;
+              obj.renderOrder = order;
               mats.forEach(function (m) {
-                //m.transparent = true;
-                //m.depthWrite = false;
-                m.needsUpdate = true;
-                if (IGNORE_DEPTH_FOR_ORDERED && name !== '水面') {
+                if (IGNORE_DEPTH_FOR_ORDERED && name.indexOf('水面') !== 0) {
                   m.depthTest = false;
                 }
                 m.needsUpdate = true;
@@ -162,12 +183,12 @@ if (window.AFRAME) {
               list.appendChild(row);
             }
           });
-        } catch (err) {
-          var box = document.getElementById('err');
-          if (box) {
-            box.style.display = 'block';
-            box.textContent += 'draw-order: ' + err.message + '\n';
+
+          if (matched === 0) {
+            showErr('描画順を設定できたオブジェクトが0個です。「mesh」ボタンで名前を確認してください。');
           }
+        } catch (err) {
+          showErr('draw-order: ' + err.message);
         }
       });
     }
@@ -206,11 +227,6 @@ window.addEventListener('DOMContentLoaded', function () {
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
 
   <a-entity mindar-image-target="targetIndex: 0">
-    <!--
-      マテリアルはglTF(character.glb)の設定をそのまま使う。
-      描画順だけ draw-order で調整する。
-      向きを直したいときは rotation の値だけ変更する。
-    -->
     <a-gltf-model
       id="avatarModel"
       src="#avatar"
