@@ -136,13 +136,20 @@ if (window.AFRAME) {
             if (list) {
               var m0 = mats[0];
               var info =
-                name +
-                ' | 順:' + obj.renderOrder +
-                ' | 材:' + (m0.name || '-') +
-                ' | 透明:' + (m0.transparent ? 'Y' : 'N') +
-                ' | 不透明度:' + (m0.opacity !== undefined ? m0.opacity.toFixed(2) : '-') +
-                ' | αテスト:' + (m0.alphaTest || 0) +
-                ' | 画像:' + (m0.map ? 'あり' : 'なし');
+              'Mesh:' + name +
+              ' | Material:' + (m0.name || '-') +
+              ' | 順:' + obj.renderOrder +
+              ' | 透明:' + (m0.transparent ? 'Y' : 'N') +
+              ' | 不透明度:' + (m0.opacity !== undefined ? m0.opacity.toFixed(2) : '-') +
+              ' | αテスト:' + (m0.alphaTest || 0) +
+              ' | side:' +
+              (
+                m0.side === 0 ? 'Front' :
+                m0.side === 1 ? 'Back' :
+                m0.side === 2 ? 'Double' :
+                m0.side
+              ) +
+              ' | 画像:' + (m0.map ? 'あり' : 'なし');
 
               var row = document.createElement('div');
               row.className = 'row';
