@@ -114,7 +114,8 @@ if (order !== null) {
 
 /*
   ドラッグ / スワイプで回転（離すと惰性でくるくる回り、徐々に減速）
-  Z軸（カードの面に垂直な軸）固定：横の動きだけで、平面上をターンテーブルのように回る
+  横の動き → Z軸（カードの面に垂直な軸）まわりに回る。惰性あり
+  縦の動き → X軸（カードの横軸）まわりに傾く。±maxTilt 度まで
 */
 if (window.AFRAME) {
 
@@ -122,7 +123,8 @@ if (window.AFRAME) {
 
     schema: {
       speed: { type: 'number', default: 0.01 },     // 1px あたりの回転量(rad)
-      friction: { type: 'number', default: 0.95 }   // 惰性の減衰（1に近いほど長く回る）
+      friction: { type: 'number', default: 0.95 },  // 惰性の減衰（1に近いほど長く回る）
+      maxTilt: { type: 'number', default: 30 }      // 上下の傾きの上限(度)
     },
 
     init: function () {
@@ -130,31 +132,45 @@ if (window.AFRAME) {
       var self = this;
       this.dragging = false;
       this.lastX = 0;
+      this.lastY = 0;
       this.lastTime = 0;
       this.velocity = 0;  // rad / ms
+      this.tilt = 0;      // 現在の傾き(rad)
 
-      function getX(e) {
-        return e.touches ? e.touches[0].clientX : e.clientX;
+      function getPoint(e) {
+        return e.touches ? e.touches[0] : e;
       }
 
       this.onDown = function (e) {
+        var p = getPoint(e);
         self.dragging = true;
-        self.lastX = getX(e);
+        self.lastX = p.clientX;
+        self.lastY = p.clientY;
         self.lastTime = performance.now();
         self.velocity = 0;
       };
 
       this.onMove = function (e) {
         if (!self.dragging) return;
-        var x = getX(e);
+        var p = getPoint(e);
         var now = performance.now();
         var dt = Math.max(now - self.lastTime, 1);
-        var delta = (x - self.lastX) * self.data.speed;
+        var delta = (p.clientX - self.lastX) * self.data.speed;
 
+        // 横回転
         self.el.object3D.rotation.z += delta;
         self.velocity = delta / dt;
 
-        self.lastX = x;
+        // 上下の傾き（範囲内に制限）
+        // rotation の順序は XYZ なので、X の傾きは回転後のモデル全体に対して
+        // カード基準でかかる（横回転しても傾く向きは常に画面の上下）
+        var max = self.data.maxTilt * Math.PI / 180;
+        self.tilt += (p.clientY - self.lastY) * self.data.speed;
+        self.tilt = Math.max(-max, Math.min(max, self.tilt));
+        self.el.object3D.rotation.x = self.tilt;
+
+        self.lastX = p.clientX;
+        self.lastY = p.clientY;
         self.lastTime = now;
       };
 
@@ -224,9 +240,9 @@ if (window.AFRAME) {
       <a-gltf-model
         id="avatarModel"
         src="#avatar"
-        position="0 0 1"
-        scale="2.5 2.5 2.5"
-        rotation="-45 0 0"
+        position="0 0 0"
+        scale="2 2 2"
+        rotation="0 0 0"
         animation-mixer
         draw-order>
       </a-gltf-model>
