@@ -17,20 +17,7 @@
     height: 100%;
     overflow: hidden;
   }
-  #err {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 99999;
-    background: rgba(200, 0, 0, 0.9);
-    color: #fff;
-    font-size: 12px;
-    padding: 6px 8px;
-    display: none;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
+
   #meshBtn {
     position: fixed;
     right: 8px;
@@ -69,16 +56,7 @@
 </style>
 
 <script>
-/* エラーを画面に表示(スマホでコンソールが見られないため) */
-function showErr(text) {
-  var box = document.getElementById('err');
-  if (!box) return;
-  box.style.display = 'block';
-  box.textContent += text + '\n';
-}
-window.addEventListener('error', function (e) {
-  showErr(e.message || 'error');
-});
+
 
 /*
   ORDER: オブジェクト名 → 描画順。数字が大きいほど手前に描かれる。
@@ -219,7 +197,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
 <body>
 
-<div id="err"></div>
 <div id="meshList">モデル読み込み中...</div>
 <div id="meshBtn">mesh</div>
 
