@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MindAR Card Test</title>
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -116,6 +116,7 @@ if (order !== null) {
   ドラッグ / スワイプで回転（離すと惰性でくるくる回り、徐々に減速）
   横の動き → Z軸（カードの面に垂直な軸）まわりに回る。惰性あり
   縦の動き → X軸（カードの横軸）まわりに傾く。±maxTilt 度まで
+  ピンチ / マウスホイール → 拡大縮小。minScale 〜 maxScale 倍まで
 */
 if (window.AFRAME) {
 
@@ -124,22 +125,83 @@ if (window.AFRAME) {
     schema: {
       speed: { type: 'number', default: 0.01 },     // 1px あたりの回転量(rad)
       friction: { type: 'number', default: 0.95 },  // 惰性の減衰（1に近いほど長く回る）
-      maxTilt: { type: 'number', default: 30 }      // 上下の傾きの上限(度)
+      maxTilt: { type: 'number', default: 30 },     // 上下の傾きの上限(度)
+      minScale: { type: 'number', default: 0.5 },   // 縮小の下限(倍)
+      maxScale: { type: 'number', default: 3 },     // 拡大の上限(倍)
+      wheelSpeed: { type: 'number', default: 0.001 } // ホイール1目盛りあたりの拡大量
     },
 
     init: function () {
 
       var self = this;
       this.dragging = false;
+      this.pinching = false;
       this.lastX = 0;
       this.lastY = 0;
       this.lastTime = 0;
       this.velocity = 0;  // rad / ms
       this.tilt = 0;      // 現在の傾き(rad)
+      this.zoom = 1;      // 現在の拡大率
+      this.pinchStartDist = 0;
+      this.pinchStartZoom = 1;
 
       function getPoint(e) {
         return e.touches ? e.touches[0] : e;
       }
+
+      function touchDist(e) {
+        var dx = e.touches[0].clientX - e.touches[1].clientX;
+        var dy = e.touches[0].clientY - e.touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      this.setZoom = function (z) {
+        self.zoom = Math.max(self.data.minScale, Math.min(self.data.maxScale, z));
+        self.el.object3D.scale.setScalar(self.zoom);
+      };
+
+      // ---- タッチ：1本指は回転、2本指はピンチ ----
+      this.onTouchStart = function (e) {
+        if (e.touches.length >= 2) {
+          self.dragging = false;
+          self.velocity = 0;
+          self.pinching = true;
+          self.pinchStartDist = touchDist(e) || 1;
+          self.pinchStartZoom = self.zoom;
+        } else if (!self.pinching) {
+          self.onDown(e);
+        }
+      };
+
+      this.onTouchMove = function (e) {
+        if (self.pinching) {
+          if (e.touches.length >= 2) {
+            self.setZoom(self.pinchStartZoom * touchDist(e) / self.pinchStartDist);
+          }
+          return;
+        }
+        self.onMove(e);
+      };
+
+      this.onTouchEnd = function (e) {
+        if (self.pinching) {
+          // 指が全部離れるまでは回転を再開しない（ピンチ後にモデルが跳ねるのを防ぐ）
+          if (e.touches.length === 0) self.pinching = false;
+          return;
+        }
+        self.onUp();
+      };
+
+      // ---- マウスホイール（トラックパッドのピンチも含む）----
+      this.onWheel = function (e) {
+        e.preventDefault();  // ブラウザ自体の拡大を止める
+        self.setZoom(self.zoom * Math.exp(-e.deltaY * self.data.wheelSpeed));
+      };
+
+      // iOS Safari のページ拡大ジェスチャーを止める
+      this.onGesture = function (e) {
+        e.preventDefault();
+      };
 
       this.onDown = function (e) {
         var p = getPoint(e);
@@ -184,10 +246,13 @@ if (window.AFRAME) {
       window.addEventListener('mousedown', this.onDown);
       window.addEventListener('mousemove', this.onMove);
       window.addEventListener('mouseup', this.onUp);
-      window.addEventListener('touchstart', this.onDown, { passive: true });
-      window.addEventListener('touchmove', this.onMove, { passive: true });
-      window.addEventListener('touchend', this.onUp);
-      window.addEventListener('touchcancel', this.onUp);
+      window.addEventListener('touchstart', this.onTouchStart, { passive: true });
+      window.addEventListener('touchmove', this.onTouchMove, { passive: true });
+      window.addEventListener('touchend', this.onTouchEnd);
+      window.addEventListener('touchcancel', this.onTouchEnd);
+      window.addEventListener('wheel', this.onWheel, { passive: false });
+      window.addEventListener('gesturestart', this.onGesture, { passive: false });
+      window.addEventListener('gesturechange', this.onGesture, { passive: false });
     },
 
     tick: function (time, delta) {
@@ -203,10 +268,13 @@ if (window.AFRAME) {
       window.removeEventListener('mousedown', this.onDown);
       window.removeEventListener('mousemove', this.onMove);
       window.removeEventListener('mouseup', this.onUp);
-      window.removeEventListener('touchstart', this.onDown);
-      window.removeEventListener('touchmove', this.onMove);
-      window.removeEventListener('touchend', this.onUp);
-      window.removeEventListener('touchcancel', this.onUp);
+      window.removeEventListener('touchstart', this.onTouchStart);
+      window.removeEventListener('touchmove', this.onTouchMove);
+      window.removeEventListener('touchend', this.onTouchEnd);
+      window.removeEventListener('touchcancel', this.onTouchEnd);
+      window.removeEventListener('wheel', this.onWheel);
+      window.removeEventListener('gesturestart', this.onGesture);
+      window.removeEventListener('gesturechange', this.onGesture);
     }
 
   });
