@@ -86,19 +86,25 @@ window.addEventListener('error', function (e) {
   オブジェクト名は画面右下の「mesh」ボタンで確認できる。
 */
 function getAutoOrder(name) {
+
   if (!name) return null;
+
   if (name.indexOf('水面') !== -1) {
     return 1;
   }
-  if (name.indexOf('CardBack') !== -1) {
+
+  if (name.indexOf('平面004') === 0) {
     return 10;
   }
+
   if (name.indexOf('CardCharacter') !== -1) {
     return 20;
   }
+
   if (name.indexOf('CardStar') !== -1) {
     return 30;
   }
+
   return null;
 }
 
