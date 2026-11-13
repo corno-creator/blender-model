@@ -97,11 +97,11 @@ function getAutoOrder(name) {
     return 10;
   }
 
-  if (name.indexOf('CardCharacter') !== -1) {
+  if (name.indexOf('CardCharacter') === 0) {
     return 20;
   }
 
-  if (name.indexOf('CardStar') !== -1) {
+  if (name.indexOf('CardStar') === 0) {
     return 30;
   }
 
