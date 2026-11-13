@@ -16,6 +16,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    touch-action: none;  /* スワイプでページがスクロール・ズームしないように */
   }
 
 
@@ -111,6 +112,92 @@ if (order !== null) {
 
 }
 
+/*
+  ドラッグ / スワイプで回転（離すと惰性でくるくる回り、徐々に減速）
+  横方向の動き → Y軸回転
+*/
+if (window.AFRAME) {
+
+  AFRAME.registerComponent('drag-spin', {
+
+    schema: {
+      speed: { type: 'number', default: 0.01 },     // 1px あたりの回転量(rad)
+      friction: { type: 'number', default: 0.95 }   // 惰性の減衰（1に近いほど長く回る）
+    },
+
+    init: function () {
+
+      var self = this;
+      this.dragging = false;
+      this.lastX = 0;
+      this.lastTime = 0;
+      this.velocity = 0;  // rad / ms
+
+      function getX(e) {
+        return e.touches ? e.touches[0].clientX : e.clientX;
+      }
+
+      this.onDown = function (e) {
+        self.dragging = true;
+        self.lastX = getX(e);
+        self.lastTime = performance.now();
+        self.velocity = 0;
+      };
+
+      this.onMove = function (e) {
+        if (!self.dragging) return;
+        var x = getX(e);
+        var now = performance.now();
+        var dx = x - self.lastX;
+        var dt = Math.max(now - self.lastTime, 1);
+        var delta = dx * self.data.speed;
+
+        self.el.object3D.rotation.y += delta;
+        self.velocity = delta / dt;
+
+        self.lastX = x;
+        self.lastTime = now;
+      };
+
+      this.onUp = function () {
+        if (!self.dragging) return;
+        self.dragging = false;
+        // 指を止めてから離した場合は惰性なし
+        if (performance.now() - self.lastTime > 100) self.velocity = 0;
+      };
+
+      window.addEventListener('mousedown', this.onDown);
+      window.addEventListener('mousemove', this.onMove);
+      window.addEventListener('mouseup', this.onUp);
+      window.addEventListener('touchstart', this.onDown, { passive: true });
+      window.addEventListener('touchmove', this.onMove, { passive: true });
+      window.addEventListener('touchend', this.onUp);
+      window.addEventListener('touchcancel', this.onUp);
+    },
+
+    tick: function (time, delta) {
+      if (this.dragging || !delta) return;
+      if (Math.abs(this.velocity) < 0.00001) return;
+
+      this.el.object3D.rotation.y += this.velocity * delta;
+      // フレームレートに依存しない減衰
+      this.velocity *= Math.pow(this.data.friction, delta / 16.67);
+    },
+
+    remove: function () {
+      window.removeEventListener('mousedown', this.onDown);
+      window.removeEventListener('mousemove', this.onMove);
+      window.removeEventListener('mouseup', this.onUp);
+      window.removeEventListener('touchstart', this.onDown);
+      window.removeEventListener('touchmove', this.onMove);
+      window.removeEventListener('touchend', this.onUp);
+      window.removeEventListener('touchcancel', this.onUp);
+    }
+
+  });
+
+}
+
 
 </script>
 </head>
@@ -133,15 +220,18 @@ if (order !== null) {
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
 
   <a-entity mindar-image-target="targetIndex: 0">
-    <a-gltf-model
-      id="avatarModel"
-      src="#avatar"
-      position="0 0 0.1"
-      scale="2.5 2.5 2.5"
-      rotation="-30 0 0"
-      animation-mixer
-      draw-order>
-    </a-gltf-model>
+    <!-- 回転用の親。GLBのアニメーションとぶつからないようモデル本体ではなくここを回す -->
+    <a-entity position="0 0 0.1" drag-spin>
+      <a-gltf-model
+        id="avatarModel"
+        src="#avatar"
+        position="0 0 0"
+        scale="2.5 2.5 2.5"
+        rotation="0 0 0"
+        animation-mixer
+        draw-order>
+      </a-gltf-model>
+    </a-entity>
   </a-entity>
 
 </a-scene>
