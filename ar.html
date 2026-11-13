@@ -114,8 +114,7 @@ if (order !== null) {
 
 /*
   ドラッグ / スワイプで回転（離すと惰性でくるくる回り、徐々に減速）
-  全方向対応：横の動き → カードの縦軸まわり / 縦の動き → カードの横軸まわり
-  （斜めに動かせば斜めに回る）
+  Z軸（カードの面に垂直な軸）固定：横の動きだけで、平面上をターンテーブルのように回る
 */
 if (window.AFRAME) {
 
@@ -129,44 +128,33 @@ if (window.AFRAME) {
     init: function () {
 
       var self = this;
-      var THREE = AFRAME.THREE;
       this.dragging = false;
       this.lastX = 0;
-      this.lastY = 0;
       this.lastTime = 0;
-      this.velX = 0;  // rad / ms（横方向）
-      this.velY = 0;  // rad / ms（縦方向）
-      this.axis = new THREE.Vector3();
-      this.q = new THREE.Quaternion();
+      this.velocity = 0;  // rad / ms
 
-      function getPoint(e) {
-        return e.touches ? e.touches[0] : e;
+      function getX(e) {
+        return e.touches ? e.touches[0].clientX : e.clientX;
       }
 
       this.onDown = function (e) {
-        var p = getPoint(e);
         self.dragging = true;
-        self.lastX = p.clientX;
-        self.lastY = p.clientY;
+        self.lastX = getX(e);
         self.lastTime = performance.now();
-        self.velX = 0;
-        self.velY = 0;
+        self.velocity = 0;
       };
 
       this.onMove = function (e) {
         if (!self.dragging) return;
-        var p = getPoint(e);
+        var x = getX(e);
         var now = performance.now();
         var dt = Math.max(now - self.lastTime, 1);
-        var ax = (p.clientX - self.lastX) * self.data.speed;
-        var ay = (p.clientY - self.lastY) * self.data.speed;
+        var delta = (x - self.lastX) * self.data.speed;
 
-        self.rotateBy(ax, ay);
-        self.velX = ax / dt;
-        self.velY = ay / dt;
+        self.el.object3D.rotation.z += delta;
+        self.velocity = delta / dt;
 
-        self.lastX = p.clientX;
-        self.lastY = p.clientY;
+        self.lastX = x;
         self.lastTime = now;
       };
 
@@ -174,10 +162,7 @@ if (window.AFRAME) {
         if (!self.dragging) return;
         self.dragging = false;
         // 指を止めてから離した場合は惰性なし
-        if (performance.now() - self.lastTime > 100) {
-          self.velX = 0;
-          self.velY = 0;
-        }
+        if (performance.now() - self.lastTime > 100) self.velocity = 0;
       };
 
       window.addEventListener('mousedown', this.onDown);
@@ -189,25 +174,13 @@ if (window.AFRAME) {
       window.addEventListener('touchcancel', this.onUp);
     },
 
-    // 親（カード）基準の軸で回す。何回転しても操作の向きが狂わない
-    rotateBy: function (ax, ay) {
-      var angle = Math.sqrt(ax * ax + ay * ay);
-      if (angle === 0) return;
-      // 画面の下方向 = カードの -Y なので、縦ドラッグは X 軸まわり
-      this.axis.set(ay, ax, 0).normalize();
-      this.q.setFromAxisAngle(this.axis, angle);
-      this.el.object3D.quaternion.premultiply(this.q);
-    },
-
     tick: function (time, delta) {
       if (this.dragging || !delta) return;
-      if (Math.abs(this.velX) < 0.00001 && Math.abs(this.velY) < 0.00001) return;
+      if (Math.abs(this.velocity) < 0.00001) return;
 
-      this.rotateBy(this.velX * delta, this.velY * delta);
+      this.el.object3D.rotation.z += this.velocity * delta;
       // フレームレートに依存しない減衰
-      var f = Math.pow(this.data.friction, delta / 16.67);
-      this.velX *= f;
-      this.velY *= f;
+      this.velocity *= Math.pow(this.data.friction, delta / 16.67);
     },
 
     remove: function () {
