@@ -18,50 +18,18 @@
     overflow: hidden;
   }
 
-  #meshBtn {
-    position: fixed;
-    right: 8px;
-    bottom: 8px;
-    z-index: 99998;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
-    font-size: 12px;
-    padding: 6px 10px;
-    border-radius: 6px;
-  }
-  #meshList {
-    position: fixed;
-    right: 8px;
-    bottom: 44px;
-    left: 8px;
-    max-height: 55%;
-    overflow: auto;
-    z-index: 99998;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    font-size: 11px;
-    padding: 6px;
-    border-radius: 6px;
-    display: none;
-  }
-  #meshList .row {
-    padding: 4px 2px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    word-break: break-all;
-  }
-  #meshList .off {
-    opacity: 0.4;
-    text-decoration: line-through;
-  }
+
 </style>
 
 <script>
 
 
 /*
-  ORDER: オブジェクト名 → 描画順。数字が大きいほど手前に描かれる。
-  名前は「前方一致」で探す(CardStar_1 や CardStar001 も CardStar として扱う)。
-  オブジェクト名は画面右下の「mesh」ボタンで確認できる。
+  描画順
+  水面 → 1
+  平面004系(CardBack/CardText/側面) → 10
+  CardCharacter → 20
+  CardStar → 30
 */
 function getAutoOrder(name) {
 
@@ -86,119 +54,70 @@ function getAutoOrder(name) {
   return null;
 }
 
-/* ORDERに書いたカード用メッシュは、層の重なりを描画順で決める(深度判定を切る) */
-var IGNORE_DEPTH_FOR_ORDERED = false;
 
-/* ORDERに書いていない半透明メッシュの描画順 */
-var DEFAULT_TRANSPARENT_ORDER = 2;
-
-/* 名前から描画順を探す。自分 → 親 の順にたどる。見つからなければ null */
-
-
-/*
-  draw-order:
-  マテリアルの見た目は触らず、描画順だけを調整する。
-  あわせて、診断用にメッシュ一覧を作る(行タップで表示/非表示)。
-*/
 if (window.AFRAME) {
+
   AFRAME.registerComponent('draw-order', {
+
     init: function () {
+
       var self = this;
+
       this.el.addEventListener('model-loaded', function () {
-        try {
-          var root = self.el.getObject3D('mesh');
-          if (!root) return;
 
-          var list = document.getElementById('meshList');
-          if (list) list.innerHTML = '';
+        var root = self.el.getObject3D('mesh');
 
-          var matched = 0;
+        if (!root) return;
 
-          root.traverse(function (obj) {
-            if (!obj.isMesh || !obj.material) return;
+        root.traverse(function (obj) {
 
-            var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            var name = obj.name || '';
+          if (!obj.isMesh || !obj.material) return;
 
-            if (
-              name.indexOf('BakedParticle') === 0
-            ) {
-              return;
-            }
-            var order = getAutoOrder(name);
-            showErr('Mesh=' + name);
+          var name = obj.name || '';
+var order = getAutoOrder(name);
 
-            if (order !== null) {
-              matched++;
-              obj.renderOrder = order;
-              mats.forEach(function (m) {
-                if (IGNORE_DEPTH_FOR_ORDERED && name.indexOf('水面') !== 0) {
-                  m.depthTest = false;
-                }
-                m.needsUpdate = true;
-              });
-            } else if (mats.some(function (m) { return m.transparent; })) {
-              obj.renderOrder = DEFAULT_TRANSPARENT_ORDER;
-            }
+if (order !== null) {
 
-            if ( list &&
-                name.indexOf('BakedParticle') !== 0
-              ) {
-              var m0 = mats[0];
-              var info =
-              'Mesh:' + name +
-              ' | Material:' + (m0.name || '-') +
-              ' | 順:' + obj.renderOrder +
-              ' | 透明:' + (m0.transparent ? 'Y' : 'N') +
-              ' | 不透明度:' + (m0.opacity !== undefined ? m0.opacity.toFixed(2) : '-') +
-              ' | αテスト:' + (m0.alphaTest || 0) +
-              ' | side:' +
-              (
-                m0.side === 0 ? 'Front' :
-                m0.side === 1 ? 'Back' :
-                m0.side === 2 ? 'Double' :
-                m0.side
-              ) +
-              ' | 画像:' + (m0.map ? 'あり' : 'なし');
+  obj.renderOrder = order;
 
-              var row = document.createElement('div');
-              row.className = 'row';
-              row.textContent = info;
-              row.addEventListener('click', function () {
-                obj.visible = !obj.visible;
-                row.className = obj.visible ? 'row' : 'row off';
-              });
-              list.appendChild(row);
-            }
-          });
+  var mats = Array.isArray(obj.material)
+    ? obj.material
+    : [obj.material];
 
-          if (matched === 0) {
-            showErr('描画順を設定できたオブジェクトが0個です。「mesh」ボタンで名前を確認してください。');
-          }
-        } catch (err) {
-          showErr('draw-order: ' + err.message);
-        }
-      });
-    }
+  mats.forEach(function (m) {
+    m.needsUpdate = true;
   });
+
 }
 
-/* meshボタンで一覧の表示/非表示 */
-window.addEventListener('DOMContentLoaded', function () {
-  var btn = document.getElementById('meshBtn');
-  var list = document.getElementById('meshList');
-  if (!btn || !list) return;
-  btn.addEventListener('click', function () {
-    list.style.display = list.style.display === 'block' ? 'none' : 'block';
-  });
+          if (order !== null) {
+
+            obj.renderOrder = order;
+
+            mats.forEach(function (m) {
+  m.needsUpdate = true;
 });
+
+
+          }
+
+        });
+
+      });
+
+    }
+
+  });
+
+}
+
+
 </script>
 </head>
 
 <body>
 
-<div id="meshList">モデル読み込み中...</div>
-<div id="meshBtn">mesh</div>
+
 
 <a-scene
   mindar-image="imageTargetSrc: ./targets.mind"
@@ -209,12 +128,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
   <a-assets>
     <a-asset-item id="avatar" src="./character.glb"></a-asset-item>
-    document
-  .querySelector('#avatar')
-  .addEventListener('error', function () {
-    showErr('character.glb 読み込み失敗');
-  });
-  </a-assets>
+   </a-assets>
 
   <a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
 
