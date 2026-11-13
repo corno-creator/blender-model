@@ -134,7 +134,13 @@ if (window.AFRAME) {
             if (!obj.isMesh || !obj.material) return;
 
             var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-            var name = obj.name;
+            var name = obj.name || '';
+
+            if (
+              name.indexOf('BakedParticle') === 0
+            ) {
+              return;
+            }
             var order = getAutoOrder(name);
             showErr('Mesh=' + name);
 
@@ -151,7 +157,9 @@ if (window.AFRAME) {
               obj.renderOrder = DEFAULT_TRANSPARENT_ORDER;
             }
 
-            if (list) {
+            if ( list &&
+                name.indexOf('BakedParticle') !== 0
+              ) {
               var m0 = mats[0];
               var info =
               'Mesh:' + name +
