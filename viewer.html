@@ -201,22 +201,18 @@ scene.add(model);
 
 model.traverse((object)=>{
 
-if(
-object.isMesh &&
-object.name==="水面"
-){
+  if(object.isMesh){
 
-object.material=
-waterMaterial;
+    console.log(
+      "Mesh:",
+      object.name,
+      "Material:",
+      object.material?.name
+    );
 
-console.log(
-"水面Shader適用"
-);
-
-}
+  }
 
 });
-
 /* モデル中央へ */
 
 const box=
